@@ -115,23 +115,27 @@ def minimum_order_response() -> str:
         f"{CUSTOMER_SERVICE_URL}"
     )
 
-async def load_stock_json():
+STOCK_ROWS = []
+
+async def load_stock_rows_from_js():
+    """
+    Wait for window.keelieStockReady (the Excel→JSON conversion) to finish,
+    then read window.keelieStockRows into Python.
+    """
     global STOCK_ROWS
+
     try:
-        res = await fetch(f"{BASE_PATH}/stock_codes.json")
-        if res.ok:
-            STOCK_ROWS = await res.json()
+        # Wait for the JS promise to finish (if it exists)
+        if hasattr(window, "keelieStockReady"):
+            await window.keelieStockReady
+
+        # Read rows
+        if hasattr(window, "keelieStockRows"):
+            STOCK_ROWS = [dict(r) for r in window.keelieStockRows.to_py()]
         else:
             STOCK_ROWS = []
     except Exception:
         STOCK_ROWS = []
-
-def lookup_stock_code(user_text: str) -> str:
-    if not STOCK_ROWS:
-        return (
-            "I can’t access stock codes right now. "
-            f"Please contact customer service here:\n{CUSTOMER_SERVICE_URL}"
-        )
 
     query = normalize_for_product_match(user_text)
     best_row, best_score = None, 0.0
