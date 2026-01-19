@@ -274,6 +274,60 @@
 
   <!-- Keelie widget styles -->
 <link rel="stylesheet" href="assets/keelie/keelie.css">
+<!-- SheetJS: read Excel in the browser -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<script>
+  // Project page base (because your site is /test-website/)
+  const KEELIE_EXCEL_URL = "/test-website/assets/keelie/stock_codes.xlsx";
+
+  // This will be read by Python later
+  window.keelieStockRows = [];
+
+  function normalizeKey(k){
+    return String(k || "").trim().toLowerCase().replace(/\s+/g, "_");
+  }
+
+  async function loadStockFromExcel() {
+    try {
+      const res = await fetch(KEELIE_EXCEL_URL, { cache: "no-store" });
+      if (!res.ok) {
+        console.warn("Keelie: stock_codes.xlsx not found:", res.status);
+        window.keelieStockRows = [];
+        return;
+      }
+
+      const buf = await res.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+
+      const sheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+
+      // Convert sheet → array of objects
+      const rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      // Flexible column mapping:
+      // accepts product_name / Product Name / product name etc.
+      const rows = rawRows.map(r => {
+        const obj = {};
+        for (const [k, v] of Object.entries(r)) obj[normalizeKey(k)] = String(v).trim();
+        return {
+          product_name: obj.product_name || obj.product || obj.name || "",
+          stock_code: obj.stock_code || obj.sku || obj.code || ""
+        };
+      }).filter(r => r.product_name && r.stock_code);
+
+      window.keelieStockRows = rows;
+      console.log(`Keelie: Loaded ${rows.length} stock rows from Excel.`);
+    } catch (e) {
+      console.error("Keelie: failed to load/parse Excel", e);
+      window.keelieStockRows = [];
+    }
+  }
+
+  // IMPORTANT: we wait for Excel load before PyScript runs
+  window.keelieStockReady = loadStockFromExcel();
+</script>
 <script type="module" src="assets/keelie/keelie.js"></script>
 
 <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css">
