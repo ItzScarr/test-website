@@ -1,0 +1,23 @@
+from js import document, window
+
+import keelie  # loads assets/keelie/keelie.py when configured below
+
+BASE_PATH = "/assets/keelie"
+
+async def boot():
+    # load stock codes
+    await keelie.load_stock_json(BASE_PATH)
+
+    def send():
+        input_el = document.getElementById("keelie-text")
+        msg = (input_el.value or "").strip()
+        if not msg:
+            return
+        input_el.value = ""
+        window.keelieAddMessage("You", msg)
+        reply = keelie.keelie_reply(msg)
+        window.keelieAddMessage("Keelie", reply)
+
+    window.keelieSend = send
+
+await boot()
