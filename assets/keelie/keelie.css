@@ -130,3 +130,10 @@
   color:#6b7280;
   padding:6px 2px 0 2px;
 }
+/* ============================= */
+/* FORCE bold rendering in chat */
+/* ============================= */
+.keelie-bubble .keelie-bold {
+  font-weight: 800;
+}
+
