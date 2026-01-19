@@ -3,7 +3,8 @@ import "https://pyscript.net/releases/2024.9.2/core.js";
 // IMPORTANT for GitHub Pages project sites:
 // If your site is https://username.github.io/repo-name/
 // set BASE_PATH = "/repo-name/assets/keelie"
-const BASE_PATH = "/test-website/assets/keelie";
+const BASE_PATH = "assets/keelie";
+
 
 function el(html) {
   const t = document.createElement("template");
