@@ -3,7 +3,7 @@ import asyncio
 
 import keelie  # assets/keelie/keelie.py
 
-BASE_PATH = "/assets/keelie"  # change to "/repo-name/assets/keelie" for project pages
+BASE_PATH = "/test-website/assets/keelie" # change to "/repo-name/assets/keelie" for project pages
 
 async def send_message():
     msg = (window.keelieGetInput() or "").strip()

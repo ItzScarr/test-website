@@ -4,11 +4,8 @@
   <meta charset="utf-8" />
   <title>Keel Toys – Trade Soft Toys</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Keel Toys trade soft toy collections, including Keeleco recycled ranges." />
+  <meta name="description" content="Trade soft toy collections, new products, and Keeleco recycled ranges." />
 
-  <!-- =========================
-       Base site styling (Keel-style)
-       ========================= -->
   <style>
     :root{
       --bg:#f6f6f6;
@@ -27,6 +24,7 @@
     *{box-sizing:border-box}
     body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)}
     a{text-decoration:none;color:inherit}
+    a:hover{text-decoration:underline;text-underline-offset:3px}
     .container{max-width:var(--max);margin:0 auto;padding:0 var(--pad)}
 
     header{
@@ -37,46 +35,67 @@
     .header-inner{
       display:flex;align-items:center;gap:16px;padding:14px 0;
     }
+    .brand{display:flex;align-items:center;gap:10px}
     .logo{
       width:40px;height:40px;border-radius:12px;
       background:rgba(31,138,76,.12);
       display:grid;place-items:center;
       font-weight:900;color:var(--accent2);
     }
-    nav{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap}
+    nav{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}
     nav a{font-size:13px;padding:8px 10px;border-radius:10px}
-    nav a:hover{background:#fafafa}
+    nav a:hover{background:#fafafa;text-decoration:none}
     .cta{
       background:linear-gradient(180deg,var(--accent),var(--accent2));
       color:#fff;font-weight:700;padding:9px 12px;border-radius:12px
     }
 
-    .hero{padding:32px 0}
-    .hero-card{
+    .hero{padding:28px 0}
+    .card{
       background:#fff;border:1px solid var(--border);
       border-radius:var(--radius);box-shadow:var(--shadow);
-      padding:24px;
+      padding:22px;
     }
-    .hero h1{margin:0 0 12px;font-size:clamp(26px,3vw,40px)}
-    .hero p{color:var(--muted);line-height:1.6}
+    .kicker{
+      display:inline-flex;gap:8px;align-items:center;
+      font-size:12px;font-weight:700;
+      color:var(--accent2);
+      background:rgba(31,138,76,.10);
+      border:1px solid rgba(31,138,76,.20);
+      padding:7px 10px;border-radius:999px;
+    }
+    h1{margin:14px 0 10px;font-size:clamp(26px,3vw,40px);line-height:1.1}
+    p{margin:0;color:var(--muted);line-height:1.6;font-size:14px}
+    .actions{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;
+      padding:11px 12px;border-radius:12px;
+      border:1px solid var(--border);background:#fff;
+      font-size:13px;font-weight:700;
+      text-decoration:none !important;
+    }
+    .btn.primary{
+      border-color:rgba(31,138,76,.35);
+      background:linear-gradient(180deg,var(--accent),var(--accent2));
+      color:#fff;
+    }
 
     footer{
-      margin-top:40px;padding:20px 0;
+      margin-top:26px;padding:18px 0;
       border-top:1px solid var(--border);
       background:#fff;font-size:12px;color:var(--muted)
     }
+    .foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   </style>
 
   <!-- =========================
-       Keelie Chatbot Widget (CORRECT PATHS)
+       Keelie chatbot widget (CORRECT for /test-website/)
        ========================= -->
   <link rel="stylesheet" href="/test-website/assets/keelie/keelie.css">
 
-  <!-- PyScript -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css">
   <script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
 
-  <!-- PyScript config (external Python files) -->
   <script type="application/json" id="pyscript-config">
   {
     "packages": [],
@@ -87,56 +106,65 @@
   }
   </script>
 
-  <!-- Floating chatbot loader -->
   <script type="module" src="/test-website/assets/keelie/keelie.js"></script>
 </head>
 
 <body>
+  <header>
+    <div class="container">
+      <div class="header-inner">
+        <a class="brand" href="/test-website/">
+          <div class="logo">K</div>
+          <div>
+            <div style="font-weight:800; font-size:14px; line-height:1.1;">Keel Toys</div>
+            <div style="color:var(--muted); font-size:12px; margin-top:2px;">Soft toys • Trade collections</div>
+          </div>
+        </a>
 
-<header>
-  <div class="container">
-    <div class="header-inner">
-      <div class="logo">K</div>
-      <strong>Keel Toys</strong>
-
-      <nav>
-        <a href="#">Keeleco</a>
-        <a href="#">Our Collections</a>
-        <a href="#">New Products</a>
-        <a href="#">Products</a>
-        <a href="#">About Us</a>
-        <a class="cta" href="#">Contact Us</a>
-      </nav>
+        <nav>
+          <a href="#">Keeleco</a>
+          <a href="#">Our Collections</a>
+          <a href="#">New Products</a>
+          <a href="#">Products</a>
+          <a href="#">About Us</a>
+          <a class="cta" href="#">Contact Us</a>
+        </nav>
+      </div>
     </div>
-  </div>
-</header>
+  </header>
 
-<main class="hero">
-  <div class="container">
-    <div class="hero-card">
-      <h1>Trade soft toys designed for retailers</h1>
-      <p>
-        Explore Keel Toys collections, discover new products,
-        and learn about our Keeleco® recycled ranges.
-        Need help? Click the chat icon in the bottom-right to ask Keelie.
-      </p>
+  <main class="hero">
+    <div class="container">
+      <div class="card">
+        <div class="kicker">Keeleco® • recycled range</div>
+        <h1>Trade soft toys that sell—designed for retailers.</h1>
+        <p>
+          Browse collections, discover new launches, and explore our recycled range.
+          Need help? Click the chat icon in the bottom-right to ask Keelie.
+        </p>
+
+        <div class="actions">
+          <a class="btn primary" href="#">Explore New Products</a>
+          <a class="btn" href="#">View Collections</a>
+          <a class="btn" href="#">Discover Keeleco</a>
+        </div>
+      </div>
     </div>
-  </div>
-</main>
+  </main>
 
-<footer>
-  <div class="container">
-    © <span id="y"></span> Keel Toys · Demo site
-  </div>
-</footer>
+  <footer>
+    <div class="container">
+      <div class="foot">
+        <div>© <span id="y"></span> Keel Toys (demo)</div>
+        <div>
+          <a href="#">Contact</a> · <a href="#">About</a> · <a href="#">News</a>
+        </div>
+      </div>
+    </div>
+  </footer>
 
-<script>
-  document.getElementById("y").textContent = new Date().getFullYear();
-</script>
-
-<!--
-  The Keelie chatbot automatically injects itself
-  as a floating assistant button.
--->
+  <script>
+    document.getElementById("y").textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
