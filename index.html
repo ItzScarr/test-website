@@ -34,7 +34,6 @@
     a:hover{ text-decoration:underline; text-underline-offset:3px; }
     .container{ width:min(var(--max),100%); margin:0 auto; padding:0 var(--pad); }
 
-    /* Header */
     header{
       background:#fff;
       border-bottom:1px solid var(--border);
@@ -97,7 +96,6 @@
       margin-left:6px;
     }
 
-    /* Hero */
     .hero{ padding:28px 0 16px; }
     .hero-grid{
       display:grid;
@@ -190,7 +188,6 @@
     .mini strong{ display:block; font-size:13px; }
     .mini span{ display:block; margin-top:4px; font-size:12px; color:var(--muted); line-height:1.45; }
 
-    /* Tiles */
     section{ padding:10px 0 18px; }
     .section-title{
       display:flex;
@@ -249,7 +246,6 @@
     .tile h3{ margin:10px 0 6px; font-size:14px; }
     .tile p{ margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
 
-    /* Footer */
     footer{
       margin-top: 8px;
       padding:18px 0 28px;
@@ -267,81 +263,81 @@
     }
   </style>
 
-  <!-- =================================================
-       ✅ THESE ARE THE LINES YOU ASKED TO ADD
-       (GitHub Pages + PyScript + Keelie widget loader)
-       ================================================= -->
+  <!-- =========================
+       Keelie widget files
+       ========================= -->
+  <link rel="stylesheet" href="assets/keelie/keelie.css">
 
-  <!-- Keelie widget styles -->
-<link rel="stylesheet" href="assets/keelie/keelie.css">
-<!-- SheetJS: read Excel in the browser -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- PyScript -->
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css">
+  <script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
 
-<script>
-  // Project page base (because your site is /test-website/)
-  const KEELIE_EXCEL_URL = "/test-website/assets/keelie/stock_codes.xlsx";
+  <!-- SheetJS: Excel in the browser -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  // This will be read by Python later
-  window.keelieStockRows = [];
+  <!-- Load stock_codes.xlsx -> window.keelieStockRows (BEFORE python starts) -->
+  <script>
+    // Your project base is /test-website
+    const KEELIE_EXCEL_URL = "/test-website/assets/keelie/stock_codes.xlsx";
 
-  function normalizeKey(k){
-    return String(k || "").trim().toLowerCase().replace(/\s+/g, "_");
-  }
+    window.keelieStockRows = [];
 
-  async function loadStockFromExcel() {
-    try {
-      const res = await fetch(KEELIE_EXCEL_URL, { cache: "no-store" });
-      if (!res.ok) {
-        console.warn("Keelie: stock_codes.xlsx not found:", res.status);
+    function normKey(k){
+      return String(k || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+    }
+
+    async function loadStockFromExcel() {
+      try {
+        const res = await fetch(KEELIE_EXCEL_URL, { cache: "no-store" });
+        if (!res.ok) {
+          console.warn("Keelie: stock_codes.xlsx not found:", res.status);
+          window.keelieStockRows = [];
+          return;
+        }
+
+        const buf = await res.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array" });
+
+        const sheetName = wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+        const rows = rawRows.map(r => {
+          const obj = {};
+          for (const [k, v] of Object.entries(r)) obj[normKey(k)] = String(v).trim();
+          return {
+            product_name: obj.product_name || obj.product || obj.name || "",
+            stock_code: obj.stock_code || obj.sku || obj.code || ""
+          };
+        }).filter(r => r.product_name && r.stock_code);
+
+        window.keelieStockRows = rows;
+        console.log(`Keelie: Loaded ${rows.length} stock rows from Excel.`);
+      } catch (e) {
+        console.error("Keelie: failed to load/parse Excel", e);
         window.keelieStockRows = [];
-        return;
       }
+    }
 
-      const buf = await res.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
+    // Python will await this promise
+    window.keelieStockReady = loadStockFromExcel();
+  </script>
 
-      const sheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-
-      // Convert sheet → array of objects
-      const rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-      // Flexible column mapping:
-      // accepts product_name / Product Name / product name etc.
-      const rows = rawRows.map(r => {
-        const obj = {};
-        for (const [k, v] of Object.entries(r)) obj[normalizeKey(k)] = String(v).trim();
-        return {
-          product_name: obj.product_name || obj.product || obj.name || "",
-          stock_code: obj.stock_code || obj.sku || obj.code || ""
-        };
-      }).filter(r => r.product_name && r.stock_code);
-
-      window.keelieStockRows = rows;
-      console.log(`Keelie: Loaded ${rows.length} stock rows from Excel.`);
-    } catch (e) {
-      console.error("Keelie: failed to load/parse Excel", e);
-      window.keelieStockRows = [];
+  <!-- PyScript config (only runtime file) -->
+  <script type="application/json" id="pyscript-config">
+  {
+    "packages": [],
+    "files": {
+      "assets/keelie/keelie_runtime.py": "assets/keelie/keelie_runtime.py"
     }
   }
+  </script>
 
-  // IMPORTANT: we wait for Excel load before PyScript runs
-  window.keelieStockReady = loadStockFromExcel();
-</script>
-<script type="module" src="assets/keelie/keelie.js"></script>
-
-<link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css">
-<script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
-
-<script type="application/json" id="pyscript-config">
-{
-  "packages": [],
-  "files": {
-    "assets/keelie/keelie_runtime.py": "assets/keelie/keelie_runtime.py"
-  }
-}
-</script>
-
+  <!-- Keelie widget JS -->
+  <script type="module" src="assets/keelie/keelie.js"></script>
 </head>
 
 <body>
@@ -454,7 +450,5 @@
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
   </script>
-
-  <!-- Chat widget injects itself via /test-website/assets/keelie/keelie.js -->
 </body>
 </html>
