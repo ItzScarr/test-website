@@ -4,7 +4,7 @@ import "https://pyscript.net/releases/2024.9.2/core.js";
 // If your site is https://username.github.io/repo-name/
 // set BASE_PATH = "/repo-name/assets/keelie"
 const BASE_PATH = "assets/keelie";
-
+py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py`);
 
 function el(html) {
   const t = document.createElement("template");
