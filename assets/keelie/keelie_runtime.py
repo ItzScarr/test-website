@@ -4,11 +4,11 @@ import asyncio
 from difflib import SequenceMatcher
 from typing import Optional
 
-from js import window, fetch
+from js import window
 
-# GitHub Pages base folder for your project
-BASE_PATH = "/test-website/assets/keelie"
-
+# -------------------------
+# Bot identity & constants
+# -------------------------
 BOT_NAME = "Keelie"
 COMPANY_NAME = "Keel Toys"
 CUSTOMER_SERVICE_URL = "https://www.keeltoys.com/contact-us/"
@@ -42,9 +42,15 @@ FAQ = {
         "All Keel Toys products are designed and tested to meet UK and EU safety standards.",
 }
 
+# -------------------------
+# State
+# -------------------------
 PENDING_STOCK_LOOKUP = False
-STOCK_ROWS = []
+STOCK_ROWS = []  # loaded from JS Excel conversion
 
+# -------------------------
+# Helpers
+# -------------------------
 def clean_text(text: str) -> str:
     text = text.lower()
     text = re.sub(r"[^a-z0-9\s]", " ", text)
@@ -85,7 +91,7 @@ def normalize_for_product_match(text: str) -> str:
 
 def is_minimum_order_question(text: str) -> bool:
     t = clean_text(text)
-    triggers = ["minimum order", "minimum spend", "minimum purchase", "min order", "min spend", "order minimum", "minimum order price"]
+    triggers = ["minimum order","minimum spend","minimum purchase","min order","min spend","order minimum","minimum order price"]
     return any(x in t for x in triggers)
 
 def is_production_question(text: str) -> bool:
@@ -115,30 +121,35 @@ def minimum_order_response() -> str:
         f"{CUSTOMER_SERVICE_URL}"
     )
 
-STOCK_ROWS = []
-
+# -------------------------
+# Load stock rows from JS (Excel conversion)
+# -------------------------
 async def load_stock_rows_from_js():
-    """
-    Wait for window.keelieStockReady (the Excel→JSON conversion) to finish,
-    then read window.keelieStockRows into Python.
-    """
     global STOCK_ROWS
-
     try:
-        # Wait for the JS promise to finish (if it exists)
+        # Wait for JS promise to finish
         if hasattr(window, "keelieStockReady"):
             await window.keelieStockReady
 
-        # Read rows
         if hasattr(window, "keelieStockRows"):
+            # Convert JS array -> Python list of dicts
             STOCK_ROWS = [dict(r) for r in window.keelieStockRows.to_py()]
         else:
             STOCK_ROWS = []
     except Exception:
         STOCK_ROWS = []
 
+def lookup_stock_code(user_text: str) -> str:
+    if not STOCK_ROWS:
+        return (
+            "I can’t access stock codes right now. "
+            f"Please contact customer service here:\n{CUSTOMER_SERVICE_URL}"
+        )
+
     query = normalize_for_product_match(user_text)
-    best_row, best_score = None, 0.0
+
+    best_row = None
+    best_score = 0.0
     for row in STOCK_ROWS:
         name = str(row.get("product_name", "")).lower().strip()
         score = similarity(query, name)
@@ -180,7 +191,8 @@ def keelie_reply(user_input: str) -> str:
 
     if is_delivery_question(user_input):
         PENDING_STOCK_LOOKUP = False
-        return "For delivery updates, please check your order confirmation email. It includes your estimated delivery date and tracking details if available."
+        return ("For delivery updates, please check your order confirmation email. "
+                "It includes your estimated delivery date and tracking details if available.")
 
     if is_minimum_order_question(user_input):
         PENDING_STOCK_LOOKUP = False
@@ -212,7 +224,10 @@ def keelie_reply(user_input: str) -> str:
     if code:
         PENDING_STOCK_LOOKUP = False
         found = lookup_product_by_code(code)
-        return found if found else f"I couldn’t find a product with the stock code **{code}**. Please check the code and try again."
+        return found if found else (
+            f"I couldn’t find a product with the stock code **{code}**. "
+            "Please check the code and try again."
+        )
 
     faq = best_faq_answer(cleaned)
     if faq:
@@ -225,6 +240,9 @@ def keelie_reply(user_input: str) -> str:
         f"Please contact Keel Toys customer service here:\n{CUSTOMER_SERVICE_URL}"
     )
 
+# -------------------------
+# Wire up the UI
+# -------------------------
 async def send_message():
     msg = (window.keelieGetInput() or "").strip()
     if not msg:
@@ -242,8 +260,7 @@ async def send_message():
     window.keelieAddBubble("Keelie", reply)
 
 async def boot():
-    # Stock codes are optional; chatbot still works without the json file
-    await load_stock_json()
+    await load_stock_rows_from_js()
     window.keelieSend = send_message
 
 await boot()
