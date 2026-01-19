@@ -273,27 +273,22 @@
        ================================================= -->
 
   <!-- Keelie widget styles -->
-  <link rel="stylesheet" href="/test-website/assets/keelie/keelie.css">
+<link rel="stylesheet" href="assets/keelie/keelie.css">
 
-  <!-- PyScript (Python in the browser) -->
-  <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css">
-  <script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
+<link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css">
+<script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
 
-  <!-- PyScript config: load external Python files -->
-  <script type="application/json" id="pyscript-config">
-  {
-    "packages": [],
-    "files": {
-      "/test-website/assets/keelie/keelie.py": "/test-website/assets/keelie/keelie.py",
-      "/test-website/assets/keelie/keelie_runtime.py": "/test-website/assets/keelie/keelie_runtime.py"
-    }
+<script type="application/json" id="pyscript-config">
+{
+  "packages": [],
+  "files": {
+    "assets/keelie/keelie.py": "assets/keelie/keelie.py",
+    "assets/keelie/keelie_runtime.py": "assets/keelie/keelie_runtime.py"
   }
-  </script>
+}
+</script>
 
-  <!-- Keelie widget JavaScript -->
-  <script type="module" src="/test-website/assets/keelie/keelie.js"></script>
-
-  <!-- ================================================= -->
+<script type="module" src="assets/keelie/keelie.js"></script>
 </head>
 
 <body>
