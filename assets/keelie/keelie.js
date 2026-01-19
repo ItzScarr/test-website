@@ -8,6 +8,31 @@ function el(html) {
   return t.content.firstElementChild;
 }
 
+// ==============================
+// Safe formatting helpers
+// ==============================
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatKeelie(text) {
+  // Escape first (security), then allow limited formatting
+  let safe = escapeHtml(text);
+
+  // Bold: **text**
+  safe = safe.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  // Newlines -> <br>
+  safe = safe.replace(/\n/g, "<br>");
+
+  return safe;
+}
+
 function mountWidget() {
   const launcher = el(`
     <button class="keelie-launcher" aria-label="Open chat">
@@ -50,12 +75,19 @@ function mountWidget() {
   const closeBtn = panel.querySelector(".keelie-close");
   const typingEl = panel.querySelector("#keelie-typing");
 
+  // ==============================
+  // Chat bubble rendering
+  // ==============================
   function addBubble(who, text) {
     const div = document.createElement("div");
     div.className = `keelie-msg ${who === "You" ? "you" : "bot"}`;
+
     const bubble = document.createElement("div");
     bubble.className = "keelie-bubble";
-    bubble.textContent = text;
+
+    // ✅ Render limited formatting
+    bubble.innerHTML = formatKeelie(text);
+
     div.appendChild(bubble);
     chatEl.appendChild(div);
     chatEl.scrollTop = chatEl.scrollHeight;
