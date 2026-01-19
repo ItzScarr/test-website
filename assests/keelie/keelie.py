@@ -214,9 +214,12 @@ async def load_stock_json(base_path: str):
         if res.ok:
             STOCK_ROWS = await res.json()
         else:
+            # If the file doesn't exist yet, just continue without stock data
             STOCK_ROWS = []
     except Exception:
         STOCK_ROWS = []
+
+    
 
 def init_widget_config(config: dict):
     # exposed hook if you want to configure later
