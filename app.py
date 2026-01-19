@@ -1,3 +1,4 @@
+import os
 import re
 import random
 from dataclasses import dataclass
@@ -20,8 +21,8 @@ CUSTOMER_SERVICE_URL = "https://www.keeltoys.com/contact-us/"
 # =========================
 # Minimum order values
 # =========================
-MIN_ORDER_FIRST = 500   # £500 for first-time buyers
-MIN_ORDER_REPEAT = 250  # £250 for repeat buyers
+MIN_ORDER_FIRST = 500
+MIN_ORDER_REPEAT = 250
 
 # =========================
 # Manufacturing info
@@ -49,18 +50,14 @@ ECO_INFO = (
 # =========================
 # Excel settings (STOCK CODES ONLY)
 # =========================
-EXCEL_PATH = "stock_codes.xlsx"
+EXCEL_PATH = "stock_codes.xlsx"  # put this file in backend/ (same folder as app.py)
 EXCEL_SHEET = 0
 
-EXCEL_COLUMNS = {
-    "product": "product_name",
-    "code": "stock_code",
-}
+EXCEL_COLUMNS = {"product": "product_name", "code": "stock_code"}
 
 # =========================
-# Helper state (per "session_id")
+# Session state (simple in-memory)
 # =========================
-# In production you'd use Redis/DB. This is fine for local/dev.
 SESSION_STATE: Dict[str, Dict[str, bool]] = {}
 
 def get_state(session_id: str) -> Dict[str, bool]:
@@ -119,21 +116,13 @@ def is_minimum_order_question(text: str) -> bool:
 
 def is_production_question(text: str) -> bool:
     t = clean_text(text)
-
     phrases = [
-        "where are your toys produced",
-        "where are your toys made",
-        "where are your toys manufactured",
-        "where are the toys produced",
-        "where are the toys made",
-        "where are the toys manufactured",
-        "where are they produced",
-        "where are they made",
-        "where are they manufactured",
+        "where are your toys produced", "where are your toys made", "where are your toys manufactured",
+        "where are the toys produced", "where are the toys made", "where are the toys manufactured",
+        "where are they produced", "where are they made", "where are they manufactured",
     ]
     if any(p in t for p in phrases):
         return True
-
     production_words = {"produced", "made", "manufactured"}
     return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
 
@@ -160,7 +149,7 @@ def minimum_order_response() -> str:
     )
 
 # =========================
-# Load stock codes from Excel
+# Load stock codes
 # =========================
 def load_stock_codes() -> Optional[pd.DataFrame]:
     try:
@@ -212,7 +201,6 @@ def lookup_product_by_code(code: str) -> Optional[str]:
 
     code = code.upper().strip()
     matches = STOCK_DF[STOCK_DF[EXCEL_COLUMNS["code"]].astype(str).str.upper() == code]
-
     if len(matches) == 0:
         return None
 
@@ -220,7 +208,7 @@ def lookup_product_by_code(code: str) -> Optional[str]:
     return f"The product with stock code **{code}** is **{product.title()}**."
 
 # =========================
-# FAQ (flexible matching)
+# FAQ matching
 # =========================
 FAQ = {
     "Tell me about Keel Toys":
@@ -244,7 +232,7 @@ def best_faq_answer(user_text: str, threshold: float = 0.35) -> Optional[str]:
     return faq_answers[idx] if float(sims[0, idx]) >= threshold else None
 
 # =========================
-# Intent system (priority-based)
+# Intent system
 # =========================
 @dataclass
 class Intent:
@@ -255,10 +243,7 @@ class Intent:
 INTENTS = {
     "customer_service": Intent(
         priority=6,
-        keywords={
-            "customer service": 6, "support": 4,
-            "agent": 4, "human": 4, "contact": 3
-        },
+        keywords={"customer service": 6, "support": 4, "agent": 4, "human": 4, "contact": 3},
         responses=[
             "Of course! 😊 You can contact Keel Toys customer service here:\n"
             f"{CUSTOMER_SERVICE_URL}"
@@ -267,22 +252,10 @@ INTENTS = {
     "delivery_time": Intent(
         priority=5,
         keywords={
-            "when will it arrive": 6,
-            "when is it arriving": 6,
-            "when is it going to arrive": 7,
-            "going to arrive": 6,
-            "arrival": 4,
-            "eta": 5,
-            "estimated delivery": 5,
-            "delivery date": 5,
-            "arrive": 3,
-            "delivery": 4,
-            "where is my order": 6,
-            "track my order": 5,
-            "tracking": 4,
-            "order status": 5,
-            "dispatch": 4,
-            "shipped": 4,
+            "when will it arrive": 6, "when is it arriving": 6, "when is it going to arrive": 7,
+            "going to arrive": 6, "arrival": 4, "eta": 5, "estimated delivery": 5, "delivery date": 5,
+            "arrive": 3, "delivery": 4, "where is my order": 6, "track my order": 5, "tracking": 4,
+            "order status": 5, "dispatch": 4, "shipped": 4,
         },
         responses=[
             "For delivery updates, please check your order confirmation email. "
@@ -292,16 +265,12 @@ INTENTS = {
     "greeting": Intent(
         priority=1,
         keywords={"hi": 1, "hello": 1, "hey": 1, "hiya": 1, "good morning": 1, "good afternoon": 1, "good evening": 1},
-        responses=[
-            f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
-        ],
+        responses=[f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"],
     ),
     "goodbye": Intent(
         priority=1,
         keywords={"bye": 1, "goodbye": 1, "thanks": 1, "thank you": 1, "thx": 1, "cheers": 1},
-        responses=[
-            f"Thanks for chatting with {COMPANY_NAME}! Have a lovely day 😊"
-        ],
+        responses=[f"Thanks for chatting with {COMPANY_NAME}! Have a lovely day 😊"],
     ),
 }
 
@@ -321,34 +290,26 @@ def detect_intent(text: str) -> Optional[str]:
             best_intent = name
     return best_intent if best_score > 0 else None
 
-# =========================
-# Conversation handling (per session)
-# =========================
 def keelie_reply(user_input: str, session_id: str) -> str:
     state = get_state(session_id)
     cleaned = clean_text(user_input)
 
-    # Delivery override
     if is_delivery_question(user_input):
         state["PENDING_STOCK_LOOKUP"] = False
         return random.choice(INTENTS["delivery_time"].responses)
 
-    # Minimum order override
     if is_minimum_order_question(user_input):
         state["PENDING_STOCK_LOOKUP"] = False
         return minimum_order_response()
 
-    # Manufacturing location override
     if is_production_question(user_input):
         state["PENDING_STOCK_LOOKUP"] = False
         return PRODUCTION_INFO
 
-    # Eco / sustainability override
     if is_eco_question(user_input):
         state["PENDING_STOCK_LOOKUP"] = False
         return ECO_INFO
 
-    # Follow-up: user provides product name after a stock code request
     if state["PENDING_STOCK_LOOKUP"]:
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
@@ -356,7 +317,6 @@ def keelie_reply(user_input: str, session_id: str) -> str:
         state["PENDING_STOCK_LOOKUP"] = False
         return result
 
-    # Stock code request -> tries now, or asks for product name
     if is_stock_code_request(user_input):
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
@@ -364,23 +324,19 @@ def keelie_reply(user_input: str, session_id: str) -> str:
             return "Sure — what’s the product name?"
         return result
 
-    # If message contains a stock code, identify product name
     code = extract_stock_code(user_input)
     if code:
         state["PENDING_STOCK_LOOKUP"] = False
         found = lookup_product_by_code(code)
         return found if found else (
-            f"I couldn’t find a product with the stock code **{code}**. "
-            "Please check the code and try again."
+            f"I couldn’t find a product with the stock code **{code}**. Please check the code and try again."
         )
 
-    # Intent detection
     intent = detect_intent(cleaned)
     if intent:
         state["PENDING_STOCK_LOOKUP"] = False
         return random.choice(INTENTS[intent].responses)
 
-    # FAQ fallback
     faq = best_faq_answer(cleaned)
     if faq:
         state["PENDING_STOCK_LOOKUP"] = False
@@ -390,10 +346,10 @@ def keelie_reply(user_input: str, session_id: str) -> str:
     return FALLBACK
 
 # =========================
-# Flask app
+# Flask
 # =========================
 app = Flask(__name__)
-CORS(app)  # ok for local dev. tighten for production.
+CORS(app)
 
 @app.get("/health")
 def health():
@@ -412,5 +368,5 @@ def chat():
     return jsonify({"reply": reply, "session_id": session_id})
 
 if __name__ == "__main__":
-    # Run: python app.py
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    port = int(os.environ.get("PORT", "5000"))
+    app.run(host="0.0.0.0", port=port, debug=True)
