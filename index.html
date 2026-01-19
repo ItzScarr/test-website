@@ -1,3 +1,10 @@
+<!-- =========================
+OPTION 1 FRONTEND (HTML)
+=========================
+1) Replace API_BASE with the ngrok URL printed in Colab.
+2) Open this HTML in your browser.
+-->
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -16,7 +23,6 @@
     input { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #ddd; }
     button { padding: 12px 16px; border-radius: 10px; border: 1px solid #ddd; background: white; cursor: pointer; }
     button:disabled { opacity: .6; cursor: not-allowed; }
-    .hint { color: #666; font-size: 13px; margin-top: 8px; }
     pre { white-space: pre-wrap; margin: 6px 0 0; }
   </style>
 </head>
@@ -30,16 +36,21 @@
         <input id="text" placeholder="Type a message…" autocomplete="off" />
         <button id="send">Send</button>
       </div>
-      <div class="hint">Backend: http://127.0.0.1:5000/chat</div>
+
+      <p style="color:#666;font-size:13px;margin-top:8px;">
+        If you see “not running”, your API_BASE URL is wrong or the Colab cell stopped.
+      </p>
     </div>
   </div>
 
   <script>
+    // Paste the ngrok URL here (no trailing slash)
+    const API_BASE = "https://PASTE-YOUR-NGROK-URL-HERE";
+
     const chatEl = document.getElementById("chat");
     const inputEl = document.getElementById("text");
     const sendBtn = document.getElementById("send");
 
-    // simple session id stored in the browser
     const sessionId = localStorage.getItem("keelie_session") || crypto.randomUUID();
     localStorage.setItem("keelie_session", sessionId);
 
@@ -60,7 +71,7 @@
       sendBtn.disabled = true;
 
       try {
-        const res = await fetch("http://127.0.0.1:5000/chat", {
+        const res = await fetch(`${API_BASE}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message, session_id: sessionId })
@@ -69,7 +80,7 @@
         const data = await res.json();
         addMessage("Keelie", data.reply || "Sorry — no reply returned.");
       } catch (e) {
-        addMessage("Keelie", "Could not reach the server. Is app.py running?");
+        addMessage("Keelie", "Could not reach the server. Check API_BASE and that the Colab server cell is still running.");
       } finally {
         sendBtn.disabled = false;
         inputEl.focus();
@@ -81,9 +92,7 @@
       if (e.key === "Enter") sendMessage();
     });
 
-    // greeting
-    addMessage("Keelie", "Hello! 👋 I’m Keelie, the Keel Toys customer service assistant. How can I help you?");
+    addMessage("Keelie", "Hello! 👋 I’m Keelie. How can I help you?");
   </script>
 </body>
 </html>
-
