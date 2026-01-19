@@ -1,23 +1,27 @@
-from js import document, window
+from js import window
+import asyncio
 
-import keelie  # loads assets/keelie/keelie.py when configured below
+import keelie  # assets/keelie/keelie.py
 
-BASE_PATH = "/assets/keelie"
+BASE_PATH = "/assets/keelie"  # change to "/repo-name/assets/keelie" for project pages
+
+async def send_message():
+    msg = (window.keelieGetInput() or "").strip()
+    if not msg:
+        return
+
+    window.keelieClearInput()
+    window.keelieAddBubble("You", msg)
+
+    window.keelieSetTyping(True)
+    await asyncio.sleep(0.15)  # small UX delay
+
+    reply = keelie.keelie_reply(msg)
+    window.keelieSetTyping(False)
+    window.keelieAddBubble("Keelie", reply)
 
 async def boot():
-    # load stock codes
     await keelie.load_stock_json(BASE_PATH)
-
-    def send():
-        input_el = document.getElementById("keelie-text")
-        msg = (input_el.value or "").strip()
-        if not msg:
-            return
-        input_el.value = ""
-        window.keelieAddMessage("You", msg)
-        reply = keelie.keelie_reply(msg)
-        window.keelieAddMessage("Keelie", reply)
-
-    window.keelieSend = send
+    window.keelieSend = send_message
 
 await boot()

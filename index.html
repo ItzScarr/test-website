@@ -1,98 +1,545 @@
-<!-- =========================
-OPTION 1 FRONTEND (HTML)
-=========================
-1) Replace API_BASE with the ngrok URL printed in Colab.
-2) Open this HTML in your browser.
--->
-
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>Keel Toys – Trade Soft Toys & Collections</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Keelie Chat</title>
-  <style>
-    body { font-family: system-ui, Arial; margin: 0; background: #f6f6f6; }
-    .wrap { max-width: 820px; margin: 0 auto; padding: 16px; }
-    .card { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-    #chat { height: 65vh; overflow: auto; padding: 12px; border: 1px solid #eee; border-radius: 10px; background: #fafafa; }
-    .msg { margin: 10px 0; line-height: 1.35; }
-    .you { font-weight: 600; }
-    .bot { font-weight: 600; }
-    .row { display: flex; gap: 8px; margin-top: 12px; }
-    input { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #ddd; }
-    button { padding: 12px 16px; border-radius: 10px; border: 1px solid #ddd; background: white; cursor: pointer; }
-    button:disabled { opacity: .6; cursor: not-allowed; }
-    pre { white-space: pre-wrap; margin: 6px 0 0; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card">
-      <h2 style="margin:0 0 12px;">Keelie (Keel Toys)</h2>
-      <div id="chat"></div>
+  <meta name="description" content="Keel Toys – leading soft toy manufacturer and wholesaler. Discover collections, new products, and the Keeleco recycled range." />
 
-      <div class="row">
-        <input id="text" placeholder="Type a message…" autocomplete="off" />
-        <button id="send">Send</button>
+  <!-- =========================
+       Base site styling (Keel-like: clean, white, minimal, green accent)
+       ========================= -->
+  <style>
+    :root{
+      --bg: #f6f6f6;
+      --surface: #ffffff;
+      --text: #111111;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+
+      /* Eco accent (Keeleco-ish green) */
+      --accent: #1f8a4c;
+      --accent2: #166a3a;
+
+      --shadow: 0 10px 30px rgba(0,0,0,.08);
+      --shadow2: 0 8px 22px rgba(0,0,0,.08);
+
+      --radius: 18px;
+      --radius-sm: 14px;
+
+      --max: 1180px;
+      --pad: clamp(16px, 2.5vw, 28px);
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+    }
+    a{ color: inherit; text-decoration: none; }
+    a:hover{ text-decoration: underline; text-underline-offset: 3px; }
+
+    .container{
+      width: min(var(--max), 100%);
+      margin: 0 auto;
+      padding: 0 var(--pad);
+    }
+
+    /* Header */
+    .topbar{
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .topbar-inner{
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 0;
+    }
+    .brand{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 220px;
+    }
+    .logo{
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      background: rgba(31,138,76,.12);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      color: var(--accent2);
+      letter-spacing: .4px;
+    }
+    .brand-title{
+      line-height: 1.1;
+    }
+    .brand-title strong{
+      display: block;
+      font-size: 14px;
+      letter-spacing: .2px;
+    }
+    .brand-title span{
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    nav{
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .navlink{
+      font-size: 13px;
+      color: #111;
+      opacity: .92;
+      padding: 8px 10px;
+      border-radius: 10px;
+    }
+    .navlink:hover{
+      background: #fafafa;
+      text-decoration: none;
+    }
+
+    .cta{
+      margin-left: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(180deg, var(--accent), var(--accent2));
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(31,138,76,.35);
+      box-shadow: 0 8px 20px rgba(31,138,76,.18);
+      text-decoration: none !important;
+    }
+
+    /* Hero */
+    .hero{
+      padding: 28px 0 10px;
+    }
+    .hero-grid{
+      display: grid;
+      grid-template-columns: 1.35fr .65fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+    @media (max-width: 900px){
+      .hero-grid{ grid-template-columns: 1fr; }
+    }
+
+    .hero-card{
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      overflow: hidden;
+      position: relative;
+    }
+    .hero-card::after{
+      content:"";
+      position:absolute;
+      inset:-120px -120px auto auto;
+      width: 240px; height: 240px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, rgba(31,138,76,.18), rgba(31,138,76,0) 60%);
+      pointer-events: none;
+    }
+    .kicker{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--accent2);
+      background: rgba(31,138,76,.10);
+      border: 1px solid rgba(31,138,76,.20);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+    .hero h1{
+      margin: 14px 0 10px;
+      font-size: clamp(26px, 3.2vw, 40px);
+      letter-spacing: -.4px;
+      line-height: 1.1;
+    }
+    .hero p{
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 62ch;
+    }
+    .hero-actions{
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .btn{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none !important;
+    }
+    .btn.primary{
+      border-color: rgba(31,138,76,.35);
+      background: linear-gradient(180deg, var(--accent), var(--accent2));
+      color: #fff;
+    }
+
+    .stat-card{
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow2);
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    .stat{
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      background: #fff;
+    }
+    .stat strong{
+      display: block;
+      font-size: 13px;
+    }
+    .stat span{
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    /* Sections */
+    section{
+      padding: 18px 0;
+    }
+    .section-title{
+      display:flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .section-title h2{
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: .2px;
+    }
+    .section-title a{
+      font-size: 13px;
+      color: var(--accent2);
+      font-weight: 700;
+    }
+
+    .grid{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 520px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .tile{
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow2);
+      padding: 16px;
+      transition: transform .15s ease, box-shadow .15s ease;
+      min-height: 128px;
+      position: relative;
+      overflow: hidden;
+    }
+    .tile:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 12px 30px rgba(0,0,0,.10);
+    }
+    .tile .tag{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: #fff;
+    }
+    .tile h3{
+      margin: 10px 0 6px;
+      font-size: 14px;
+    }
+    .tile p{
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    /* Eco banner */
+    .eco{
+      background: linear-gradient(180deg, rgba(31,138,76,.10), rgba(31,138,76,0));
+      border: 1px solid rgba(31,138,76,.18);
+    }
+    .eco .eco-grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 14px;
+      align-items: center;
+    }
+    @media (max-width: 900px){
+      .eco .eco-grid{ grid-template-columns: 1fr; }
+    }
+    .eco ul{
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .eco .mini{
+      background: #fff;
+      border: 1px solid rgba(31,138,76,.20);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: 0 10px 26px rgba(31,138,76,.10);
+    }
+    .eco .mini strong{ font-size: 13px; display:block; }
+    .eco .mini span{ color: var(--muted); font-size: 12px; display:block; margin-top:6px; line-height:1.45; }
+
+    /* Footer */
+    footer{
+      margin-top: 14px;
+      padding: 18px 0 28px;
+      border-top: 1px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    footer .foot{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+  </style>
+
+  <!-- =========================
+       Keelie chatbot widget (from earlier steps)
+       - Make sure these files exist:
+         /assets/keelie/keelie.css
+         /assets/keelie/keelie.js
+         /assets/keelie/keelie.py
+         /assets/keelie/keelie_runtime.py
+         /assets/keelie/stock_codes.json
+       ========================= -->
+  <link rel="stylesheet" href="/assets/keelie/keelie.css">
+
+  <!-- PyScript -->
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css">
+  <script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
+
+  <!-- PyScript config: allows importing external .py files -->
+  <script type="application/json" id="pyscript-config">
+  {
+    "packages": [],
+    "files": {
+      "/assets/keelie/keelie.py": "/assets/keelie/keelie.py",
+      "/assets/keelie/keelie_runtime.py": "/assets/keelie/keelie_runtime.py"
+    }
+  }
+  </script>
+
+  <!-- Widget loader (injects the floating button + panel) -->
+  <script type="module" src="/assets/keelie/keelie.js"></script>
+</head>
+
+<body>
+  <!-- Header -->
+  <header class="topbar">
+    <div class="container">
+      <div class="topbar-inner">
+        <a class="brand" href="/">
+          <!-- Replace "K" block with your own logo if you have permission -->
+          <div class="logo">K</div>
+          <div class="brand-title">
+            <strong>Keel Toys</strong>
+            <span>Soft toys • Trade collections</span>
+          </div>
+        </a>
+
+        <nav aria-label="Primary">
+          <a class="navlink" href="/keeleco/">Keeleco</a>
+          <a class="navlink" href="/our-collections">Our Collections</a>
+          <a class="navlink" href="/new-products">New Products</a>
+          <a class="navlink" href="/products">Products</a>
+          <a class="navlink" href="/about-us/">About Us</a>
+          <a class="navlink" href="/news">News</a>
+          <a class="cta" href="/contact-us/">Contact Us</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <main class="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div class="hero-card">
+          <div class="kicker">100% recycled range • Keeleco®</div>
+          <h1>Trade soft toys that sell—designed with retailers in mind.</h1>
+          <p>
+            Browse collections, discover new launches, and explore our recycled range inspired by sustainable materials and responsible packaging.
+          </p>
+
+          <div class="hero-actions">
+            <a class="btn primary" href="/new-products">Explore New Products</a>
+            <a class="btn" href="/our-collections">View Collections</a>
+            <a class="btn" href="/keeleco/">Discover Keeleco</a>
+          </div>
+        </div>
+
+        <aside class="stat-card" aria-label="Highlights">
+          <div class="stat">
+            <strong>Keeleco® recycled plush</strong>
+            <span>Made from recycled polyester derived from plastic waste; a key sustainability focus.</span>
+          </div>
+          <div class="stat">
+            <strong>Trade-first experience</strong>
+            <span>Collections, categories and downloads designed for retail buyers and partners.</span>
+          </div>
+          <div class="stat">
+            <strong>Need help fast?</strong>
+            <span>Use the Keelie chat widget in the bottom-right for quick answers.</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <!-- Category tiles -->
+  <section>
+    <div class="container">
+      <div class="section-title">
+        <h2>Browse</h2>
+        <a href="/products">See all products →</a>
       </div>
 
-      <p style="color:#666;font-size:13px;margin-top:8px;">
-        If you see “not running”, your API_BASE URL is wrong or the Colab cell stopped.
-      </p>
+      <div class="grid">
+        <a class="tile" href="/keeleco/">
+          <span class="tag">Eco range</span>
+          <h3>Keeleco®</h3>
+          <p>Recycled plush and packaging-focused improvements.</p>
+        </a>
+
+        <a class="tile" href="/new-products">
+          <span class="tag">Latest</span>
+          <h3>New Products</h3>
+          <p>Fresh launches for seasonal and evergreen ranges.</p>
+        </a>
+
+        <a class="tile" href="/our-collections">
+          <span class="tag">Ranges</span>
+          <h3>Our Collections</h3>
+          <p>Explore grouped collections for retail merchandising.</p>
+        </a>
+
+        <a class="tile" href="/about-us/design-and-manufacture">
+          <span class="tag">About</span>
+          <h3>Design & Manufacture</h3>
+          <p>Learn how ranges are developed and refined for market fit.</p>
+        </a>
+      </div>
     </div>
-  </div>
+  </section>
+
+  <!-- Eco highlight -->
+  <section>
+    <div class="container">
+      <div class="hero-card eco">
+        <div class="eco-grid">
+          <div>
+            <div class="kicker">Sustainability focus</div>
+            <h2 style="margin:12px 0 6px; font-size:18px;">Keeleco®: recycled, huggable, and designed for trade.</h2>
+            <p style="margin:0; color:var(--muted); font-size:13px; line-height:1.6;">
+              The Keeleco messaging includes recycled polyester derived from plastic waste, and improvements like FSC card hangtags and paper tape on cartons. :contentReference[oaicite:2]{index=2}
+            </p>
+            <ul>
+              <li>Recycled polyester plush (derived from plastic waste)</li>
+              <li>FSC card hangtags & packaging improvements</li>
+              <li>Quick support: ask Keelie about stock codes, minimum orders, sustainability and more</li>
+            </ul>
+          </div>
+
+          <div class="mini">
+            <strong>Try asking Keelie:</strong>
+            <span>“What’s the minimum order?”</span>
+            <span>“Where are your toys manufactured?”</span>
+            <span>“What’s the stock code for … ?”</span>
+            <span style="margin-top:10px;">
+              Or browse the site sections like “Keeleco”, “Our Collections”, and “New Products”. :contentReference[oaicite:3]{index=3}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="foot">
+        <div>© <span id="year"></span> Keel Toys (demo template). All rights reserved.</div>
+        <div>
+          <a href="/contact-us/">Contact</a> ·
+          <a href="/about-us/">About</a> ·
+          <a href="/news">News</a>
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <script>
-    // Paste the ngrok URL here (no trailing slash)
-    const API_BASE = "https://PASTE-YOUR-NGROK-URL-HERE";
-
-    const chatEl = document.getElementById("chat");
-    const inputEl = document.getElementById("text");
-    const sendBtn = document.getElementById("send");
-
-    const sessionId = localStorage.getItem("keelie_session") || crypto.randomUUID();
-    localStorage.setItem("keelie_session", sessionId);
-
-    function addMessage(who, text) {
-      const div = document.createElement("div");
-      div.className = "msg";
-      div.innerHTML = `<span class="${who === "You" ? "you" : "bot"}">${who}:</span> <pre>${text}</pre>`;
-      chatEl.appendChild(div);
-      chatEl.scrollTop = chatEl.scrollHeight;
-    }
-
-    async function sendMessage() {
-      const message = inputEl.value.trim();
-      if (!message) return;
-
-      addMessage("You", message);
-      inputEl.value = "";
-      sendBtn.disabled = true;
-
-      try {
-        const res = await fetch(`${API_BASE}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, session_id: sessionId })
-        });
-
-        const data = await res.json();
-        addMessage("Keelie", data.reply || "Sorry — no reply returned.");
-      } catch (e) {
-        addMessage("Keelie", "Could not reach the server. Check API_BASE and that the Colab server cell is still running.");
-      } finally {
-        sendBtn.disabled = false;
-        inputEl.focus();
-      }
-    }
-
-    sendBtn.addEventListener("click", sendMessage);
-    inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") sendMessage();
-    });
-
-    addMessage("Keelie", "Hello! 👋 I’m Keelie. How can I help you?");
+    document.getElementById("year").textContent = new Date().getFullYear();
   </script>
+
+  <!--
+    Chatbot widget:
+    - The floating button/panel is injected by /assets/keelie/keelie.js
+    - No extra HTML needed here.
+  -->
 </body>
 </html>
