@@ -9,7 +9,6 @@ function el(html) {
 }
 
 function mountWidget() {
-  // Launcher
   const launcher = el(`
     <button class="keelie-launcher" aria-label="Open chat">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -19,7 +18,6 @@ function mountWidget() {
     </button>
   `);
 
-  // Panel
   const panel = el(`
     <div class="keelie-panel" role="dialog" aria-label="Keelie chat">
       <div class="keelie-header">
@@ -63,24 +61,21 @@ function mountWidget() {
     chatEl.scrollTop = chatEl.scrollHeight;
   }
 
-  // expose to Python
+  // expose UI helpers to Python
   window.keelieAddBubble = addBubble;
-  window.keelieSetTyping = (on) => {
-    typingEl.style.display = on ? "block" : "none";
-  };
+  window.keelieSetTyping = (on) => { typingEl.style.display = on ? "block" : "none"; };
   window.keelieGetInput = () => inputEl.value || "";
   window.keelieClearInput = () => { inputEl.value = ""; };
 
-  function openPanel() { panel.classList.add("is-open"); inputEl.focus(); }
-  function closePanel() { panel.classList.remove("is-open"); }
+  function openPanel(){ panel.classList.add("is-open"); inputEl.focus(); }
+  function closePanel(){ panel.classList.remove("is-open"); }
 
   launcher.addEventListener("click", () => {
     panel.classList.contains("is-open") ? closePanel() : openPanel();
   });
   closeBtn.addEventListener("click", closePanel);
 
-  // send handler calls Python hook (if ready), otherwise tells user it's loading
-  async function doSend() {
+  async function doSend(){
     if (typeof window.keelieSend !== "function") {
       addBubble("Keelie", "I’m still loading… try again in a moment.");
       return;
@@ -89,16 +84,14 @@ function mountWidget() {
   }
 
   sendBtn.addEventListener("click", doSend);
-  inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") doSend();
-  });
+  inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
 
-  // Load python runtime
+  // load python runtime
   const py = document.createElement("py-script");
   py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py`);
   document.body.appendChild(py);
 
-  // First message
+  // greeting
   addBubble("Keelie", "Hello! 👋 I’m Keelie. How can I help you today?");
 }
 
