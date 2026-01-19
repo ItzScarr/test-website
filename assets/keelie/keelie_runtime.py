@@ -31,30 +31,31 @@ PRODUCTION_INFO = (
 )
 
 # =========================
-# Eco / sustainability info
+# Eco / sustainability overview (Keeleco)
 # =========================
-ECO_INFO = (
-    "We’re actively working to reduce environmental impact. Here are a few examples:\n"
-    "• Keeleco® is our 100% recycled soft toy range — made from 100% recycled polyester derived from plastic waste.\n"
-    "• As a guide, around 10 recycled 500ml bottles can produce enough fibre for an 18cm toy.\n"
-    "• Our Keel logo + hangtags are made from FSC card and attached with cotton.\n"
-    "• Shipping cartons are recycled and sealed with paper tape.\n"
-    "• We focus on responsible sourcing and work with suppliers that have independent, internationally recognised social/ethical audits.\n\n"
-    "If you’d like, tell me which product/range you’re interested in and I can help point you to the right place."
+KEELECO_OVERVIEW = (
+    "Keeleco® is our eco-focused soft toy range made using **100% recycled polyester**.\n\n"
+    "Key facts:\n"
+    "• The outer plush and inner fibre fill are made from **recycled plastic waste**.\n"
+    "• As a guide, around **10 recycled 500ml bottles** can produce enough fibre for an **18cm** toy.\n"
+    "• Our Keel logo + hangtags use **FSC card** and are attached with **cotton**.\n"
+    "• Shipping cartons are recycled and sealed with **paper tape**.\n"
+    "• Keeleco is made in an **ethically audited** factory.\n\n"
+    "If you tell me which Keeleco sub-range you mean (e.g. *Keeleco Dinosaurs*), I can share details."
 )
 
 # =========================
 # Global state
 # =========================
 PENDING_STOCK_LOOKUP = False
-STOCK_ROWS: List[Dict[str, str]] = []
+STOCK_ROWS: List[Dict[str, str]] = []  # loaded from JS Excel conversion
 
 # =========================
 # Helpers
 # =========================
 def clean_text(text: str) -> str:
     text = (text or "").lower()
-    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    text = re.sub(r"[^a-z0-9\s&-]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -100,7 +101,6 @@ def is_minimum_order_question(text: str) -> bool:
 
 def is_production_question(text: str) -> bool:
     t = clean_text(text)
-
     phrases = [
         "where are your toys produced",
         "where are your toys made",
@@ -114,7 +114,6 @@ def is_production_question(text: str) -> bool:
     ]
     if any(p in t for p in phrases):
         return True
-
     production_words = {"produced", "made", "manufactured"}
     return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
 
@@ -146,6 +145,7 @@ def minimum_order_response() -> str:
 async def load_stock_rows_from_js():
     global STOCK_ROWS
     try:
+        # Wait for JS promise to finish
         if hasattr(window, "keelieStockReady"):
             await window.keelieStockReady
 
@@ -191,6 +191,310 @@ def lookup_product_by_code(code: str) -> Optional[str]:
             product = str(row.get("product_name", "")).strip().title()
             return f"The product with stock code **{code}** is **{product}**."
     return None
+
+# =========================
+# Collections / ranges (from Keel Toys menu)
+# =========================
+# Notes:
+# - Keeleco sub-ranges share the same recycled-material story.
+# - For non-Keeleco ranges, we describe them accurately but conservatively (no invented claims).
+COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
+    # ---- Keeleco family ----
+    "keeleco": {
+        "title": "Keeleco®",
+        "facts": [
+            "Eco-focused range made from **100% recycled polyester** (plush + fibre fill).",
+            "Around **10 recycled 500ml bottles** can produce enough fibre for an **18cm** toy (guide figure).",
+            "**FSC card** hangtags attached with **cotton**.",
+            "Recycled cartons sealed with **paper tape**.",
+            "Made in an **ethically audited** factory."
+        ],
+    },
+    "keeleco adoptable world": {
+        "title": "Keeleco Adoptable World",
+        "facts": [
+            "Part of the Keeleco® family: made using **100% recycled polyester**.",
+            "Designed as a character-led animal collection with the Keeleco eco story highlighted on hangtags."
+        ],
+    },
+    "keeleco arctic & sealife": {
+        "title": "Keeleco Arctic & Sealife",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Arctic and sea-life themed characters with Keeleco eco labelling."
+        ],
+    },
+    "keeleco baby": {
+        "title": "Keeleco Baby",
+        "facts": [
+            "Keeleco® baby-themed collection made using **100% recycled polyester**.",
+            "Designed for gentle gifting and early-years appeal while keeping the Keeleco eco materials story."
+        ],
+    },
+    "keeleco botanical garden": {
+        "title": "Keeleco Botanical Garden",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Botanical/plant-inspired characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco british wildlife & farm": {
+        "title": "Keeleco British Wildlife & Farm",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "British wildlife and farm themed characters, with Keeleco eco labelling and FSC hangtags."
+        ],
+    },
+    "keeleco collectables": {
+        "title": "Keeleco Collectables",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Collectable-style characters with the Keeleco eco materials story."
+        ],
+    },
+    "keeleco dinosaurs": {
+        "title": "Keeleco Dinosaurs",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Dinosaur-themed characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco enchanted world": {
+        "title": "Keeleco Enchanted World",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Fantasy-inspired characters with the Keeleco eco labelling."
+        ],
+    },
+    "keeleco handpuppets": {
+        "title": "Keeleco Handpuppets",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Hand puppet play format within the Keeleco eco range."
+        ],
+    },
+    "keeleco jungle cats": {
+        "title": "Keeleco Jungle Cats",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Big-cat themed characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco monkeys & apes": {
+        "title": "Keeleco Monkeys & Apes",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Monkey and ape themed characters; Keeleco eco story shown on hangtags."
+        ],
+    },
+    "keeleco pets": {
+        "title": "Keeleco Pets",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Pet-themed characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco pink": {
+        "title": "Keeleco Pink",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "A colour-led Keeleco selection with the same eco materials story."
+        ],
+    },
+    "keeleco snackies": {
+        "title": "Keeleco Snackies",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Food/snack-inspired characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco teddies": {
+        "title": "Keeleco Teddies",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Teddy-led collection with the Keeleco eco materials story."
+        ],
+    },
+    "keeleco wild": {
+        "title": "Keeleco Wild",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Wildlife-themed characters within the Keeleco eco range."
+        ],
+    },
+
+    # ---- Other site collections ----
+    "love to hug": {
+        "title": "Love To Hug",
+        "facts": [
+            "A Keel Toys collection focused on soft, huggable plush characters.",
+            "If you tell me the character/size, I can help check stock codes (if available in the Excel)."
+        ],
+    },
+    "motsu": {
+        "title": "Motsu",
+        "facts": [
+            "A Keel Toys character collection with its own distinct style and designs.",
+            "If you share the exact product name, I can help find the stock code (if listed)."
+        ],
+    },
+    "pippins": {
+        "title": "Pippins",
+        "facts": [
+            "A Keel Toys collection featuring cute character-led soft toys.",
+            "If you share the product name, I can look up the stock code (if present in your Excel)."
+        ],
+    },
+    "pugsley & friends": {
+        "title": "Pugsley & Friends",
+        "facts": [
+            "A Keel Toys character collection in the ‘Friends’ style range.",
+            "If you share the specific product name, I can help locate the stock code (if listed)."
+        ],
+    },
+    "seasonal": {
+        "title": "Seasonal",
+        "facts": [
+            "Seasonal collections cover time-of-year themes (e.g., holiday gifting and seasonal characters).",
+            "If you tell me which season/character, I can help with stock codes if they’re in your Excel."
+        ],
+    },
+    "signature cuddle puppies": {
+        "title": "Signature Cuddle Puppies",
+        "facts": [
+            "A Signature collection focused on puppy characters in a ‘cuddle’ style.",
+            "Share a product name/size and I can help identify the stock code (if listed)."
+        ],
+    },
+    "signature cuddle teddies": {
+        "title": "Signature Cuddle Teddies",
+        "facts": [
+            "A Signature collection focused on teddy characters in a ‘cuddle’ style.",
+            "Share a product name/size and I can help identify the stock code (if listed)."
+        ],
+    },
+    "signature cuddle wild": {
+        "title": "Signature Cuddle Wild",
+        "facts": [
+            "A Signature collection featuring wild-animal characters in a ‘cuddle’ style.",
+            "Share a product name/size and I can help identify the stock code (if listed)."
+        ],
+    },
+    "signature forever puppies": {
+        "title": "Signature Forever Puppies",
+        "facts": [
+            "A Signature collection focused on puppy characters in the ‘Forever Puppies’ line.",
+            "Share a product name/size and I can help identify the stock code (if listed)."
+        ],
+    },
+    "souvenir": {
+        "title": "Souvenir",
+        "facts": [
+            "A collection designed for gift/souvenir-style plush items.",
+            "If you provide the product name or a code, I can help confirm stock code details (if listed)."
+        ],
+    },
+
+    # ---- “Products” group items that appear as collections in the site menu ----
+    "accessories": {
+        "title": "Accessories",
+        "facts": [
+            "A product category for Keel Toys accessories.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+    "bag charms": {
+        "title": "Bag Charms",
+        "facts": [
+            "A product category featuring bag charm items.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+    "bakery": {
+        "title": "Bakery",
+        "facts": [
+            "A product category featuring bakery-themed items.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+    "bobballs": {
+        "title": "Bobballs",
+        "facts": [
+            "A product category under Keel Toys’ product listings.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+    "cafe cute": {
+        "title": "Cafe Cute",
+        "facts": [
+            "A product category under Keel Toys’ product listings.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+}
+
+def detect_collection(cleaned_text: str) -> Optional[str]:
+    # Try to match the longest keys first (so "signature cuddle puppies" wins over "signature")
+    keys = sorted(COLLECTION_FACTS.keys(), key=len, reverse=True)
+    for k in keys:
+        if k in cleaned_text:
+            return k
+    return None
+
+def collections_overview() -> str:
+    # Provide a tidy overview list (grouped)
+    kee_sub = [
+        "Keeleco Adoptable World",
+        "Keeleco Arctic & Sealife",
+        "Keeleco Baby",
+        "Keeleco Botanical Garden",
+        "Keeleco British Wildlife & Farm",
+        "Keeleco Collectables",
+        "Keeleco Dinosaurs",
+        "Keeleco Enchanted World",
+        "Keeleco Handpuppets",
+        "Keeleco Jungle Cats",
+        "Keeleco Monkeys & Apes",
+        "Keeleco Pets",
+        "Keeleco Pink",
+        "Keeleco Snackies",
+        "Keeleco Teddies",
+        "Keeleco Wild",
+    ]
+    others = [
+        "Love To Hug",
+        "Motsu",
+        "Pippins",
+        "Pugsley & Friends",
+        "Seasonal",
+        "Signature Cuddle Puppies",
+        "Signature Cuddle Teddies",
+        "Signature Cuddle Wild",
+        "Signature Forever Puppies",
+        "Souvenir",
+    ]
+    return (
+        "Here are our main collections/ranges:\n\n"
+        "Keeleco® sub-ranges:\n"
+        + "\n".join([f"• {x}" for x in kee_sub]) +
+        "\n\nOther collections:\n"
+        + "\n".join([f"• {x}" for x in others]) +
+        "\n\nTell me which one you’re interested in and I’ll share some facts about it."
+    )
+
+def collection_reply(cleaned_text: str) -> str:
+    key = detect_collection(cleaned_text)
+    if not key:
+        return collections_overview()
+
+    info = COLLECTION_FACTS[key]
+    facts = "\n".join([f"• {f}" for f in info["facts"]])
+
+    # Special: if they ask generally about Keeleco eco/recycled, give the richer overview text
+    if key == "keeleco" and is_eco_question(cleaned_text):
+        return KEELECO_OVERVIEW
+
+    return f"Here’s an overview of **{info['title']}**:\n{facts}"
 
 # =========================
 # FAQ (simple similarity)
@@ -306,27 +610,40 @@ def keelie_reply(user_input: str) -> str:
 
     cleaned = clean_text(user_input)
 
-    # Delivery override
+    # ✅ Collections / ranges trigger (runs early)
+    if any(x in cleaned for x in ["range", "ranges", "collection", "collections", "our collections"]):
+        PENDING_STOCK_LOOKUP = False
+        return collection_reply(cleaned)
+
+    # ✅ If they mention a known collection name directly
+    if detect_collection(cleaned):
+        PENDING_STOCK_LOOKUP = False
+        return collection_reply(cleaned)
+
+    # ✅ Delivery override
     if is_delivery_question(user_input):
         PENDING_STOCK_LOOKUP = False
         return random.choice(INTENTS["delivery_time"].responses)
 
-    # Minimum order override
+    # ✅ Minimum order override
     if is_minimum_order_question(user_input):
         PENDING_STOCK_LOOKUP = False
         return minimum_order_response()
 
-    # Manufacturing location override
+    # ✅ Manufacturing location override
     if is_production_question(user_input):
         PENDING_STOCK_LOOKUP = False
         return PRODUCTION_INFO
 
-    # Eco override
+    # ✅ Eco / sustainability override -> Keeleco overview / Keeleco sub-range
     if is_eco_question(user_input):
         PENDING_STOCK_LOOKUP = False
-        return ECO_INFO
+        # If they mention a sub-range, answer it; otherwise give Keeleco overview
+        if detect_collection(cleaned):
+            return collection_reply(cleaned)
+        return KEELECO_OVERVIEW
 
-    # Follow-up: user provides product name after a stock code request
+    # ✅ Follow-up: user provides product name after a stock code request
     if PENDING_STOCK_LOOKUP:
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
@@ -334,7 +651,7 @@ def keelie_reply(user_input: str) -> str:
         PENDING_STOCK_LOOKUP = False
         return result
 
-    # Stock code request
+    # ✅ Stock code request -> tries now, or asks for product name
     if is_stock_code_request(user_input):
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
@@ -342,7 +659,7 @@ def keelie_reply(user_input: str) -> str:
             return "Sure — what’s the product name?"
         return result
 
-    # If message contains a stock code, identify product name
+    # ✅ If message contains a stock code, identify product name
     code = extract_stock_code(user_input)
     if code:
         PENDING_STOCK_LOOKUP = False
@@ -352,13 +669,13 @@ def keelie_reply(user_input: str) -> str:
             "Please check the code and try again."
         )
 
-    # Intent detection (greetings, support, etc.)
+    # ✅ Intent detection (greetings, support, etc.)
     intent = detect_intent(cleaned)
     if intent:
         PENDING_STOCK_LOOKUP = False
         return random.choice(INTENTS[intent].responses)
 
-    # FAQ fallback
+    # ✅ FAQ fallback
     faq = best_faq_answer(cleaned)
     if faq:
         PENDING_STOCK_LOOKUP = False
