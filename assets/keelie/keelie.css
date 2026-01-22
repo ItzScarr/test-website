@@ -166,20 +166,20 @@
 /* ==============================
    Footer (INPUT + AUTOSUGGEST)
    ============================== */
+/* Ensure footer is a column and we can reorder items */
 .keelie-footer{
   display:flex;
   flex-direction:column;
   gap:8px;
-  padding:10px 12px 12px;
-  border-top:1px solid var(--keelie-border);
-  background:#fff;
 }
 
-/* ---------- Autosuggest (IN FLOW, NO OVERLAP) ---------- */
-.keelie-suggest{
-  display:none;
-}
+/* Put suggestions ABOVE the input row */
+.keelie-suggest{ order:0; display:none; }
+.keelie-row{ order:1; }
+.keelie-status{ order:2; }
+.keelie-privacy{ order:3; }
 
+/* Suggestion list styling */
 .keelie-suggest-list{
   background:#fff;
   border:1px solid var(--keelie-border);
@@ -189,70 +189,15 @@
   overflow:auto;
 }
 
-.keelie-suggest-item{
-  width:100%;
-  padding:10px 12px;
-  border:none;
-  background:#fff;
-  text-align:left;
-  cursor:pointer;
-  font-size:13px;
-  color:var(--keelie-text);
-}
+/* Hide hint completely (clutter) */
+.keelie-suggest-hint{ display:none !important; }
 
-.keelie-suggest-item + .keelie-suggest-item{
-  border-top:1px solid var(--keelie-border);
-}
-
-.keelie-suggest-item:hover,
-.keelie-suggest-item.is-active{
-  background:#f3f4f6;
-}
-
-/* Hide hint completely */
-.keelie-suggest-hint{
-  display:none !important;
-}
-
-/* ---------- Input row ---------- */
-.keelie-row{
-  display:flex;
-  gap:8px;
-  align-items:center;
-}
-
-.keelie-input{
-  flex:1;
-  height:38px;
-  padding:0 12px;
-  border-radius:12px;
-  border:1px solid var(--keelie-border);
-  font-size:13px;
-}
-.keelie-input:focus{
-  outline:none;
-  border-color:rgba(197,22,46,.4);
-  box-shadow:0 0 0 2px rgba(197,22,46,.18);
-}
-
-.keelie-send{
-  height:38px;
-  padding:0 12px;
-  border-radius:12px;
-  border:1px solid rgba(197,22,46,.35);
-  background:linear-gradient(180deg,var(--keelie-brand),var(--keelie-brand-dark));
-  color:#fff;
-  font-weight:800;
-  cursor:pointer;
-}
-
-/* ==============================
-   Footer clutter hidden in suggest mode
-   ============================== */
+/* When suggesting: hide clutter so only input + list feels visible */
 .keelie-panel.is-suggesting .keelie-privacy,
 .keelie-panel.is-suggesting .keelie-status{
   display:none !important;
 }
+
 
 /* ==============================
    Privacy note
