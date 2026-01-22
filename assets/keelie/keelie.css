@@ -427,11 +427,36 @@
 @media (max-width:420px){
   .keelie-panel{
     right:12px;
-    bottom:78px;
+    bottom:84px;
     width:calc(100vw - 24px);
   }
   .keelie-launcher{
     right:12px;
     bottom:12px;
+  }
+}
+/* =====================================================
+   Make the chatbot panel bigger (more breathing room)
+   ===================================================== */
+
+/* Desktop & large screens */
+.keelie-panel{
+  width:min(420px, calc(100vw - 36px));   /* was ~360px */
+  height:min(620px, calc(100vh - 120px)); /* was ~520px */
+}
+
+/* Give the chat area more space */
+.keelie-chat{
+  height:calc(100% - 168px); /* accounts for header + fixed footer */
+}
+/* Mobile: still roomy, but not overwhelming */
+@media (max-width: 420px){
+  .keelie-panel{
+    width:calc(100vw - 24px);
+    height:calc(100vh - 110px);
+  }
+
+  .keelie-chat{
+    height:calc(100% - 160px);
   }
 }
