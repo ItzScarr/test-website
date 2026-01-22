@@ -62,88 +62,52 @@ def clean_text(text: str) -> str:
 def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
-def token_set(s: str) -> set:
-    return set(clean_text(s).split())
-
-def token_overlap(a: str, b: str) -> float:
-    A, B = token_set(a), token_set(b)
-    if not A or not B:
-        return 0.0
-    return len(A & B) / max(len(A), len(B))
-
-def phrase_match_score(user_text: str, phrase: str) -> float:
-    """
-    Broad matching score in [0..1]:
-    - 1.0 if phrase is a direct substring of user_text
-    - else uses a blend of fuzzy similarity + token overlap
-    """
-    u = clean_text(user_text)
-    p = clean_text(phrase)
-    if not u or not p:
-        return 0.0
-    if p in u:
-        return 1.0
-    sim = similarity(u, p)
-    ov = token_overlap(u, p)
-    return max(sim * 0.85, ov)
-
 def extract_stock_code(text: str) -> Optional[str]:
     matches = re.findall(r"\b[A-Z]{1,5}-?[A-Z]{0,5}-?\d{2,4}\b", (text or "").upper())
     return matches[0] if matches else None
 
 def is_delivery_question(text: str) -> bool:
     t = clean_text(text)
-    delivery_terms = [
-        "arrive", "arrival", "delivery", "eta", "tracking", "track",
-        "order", "dispatch", "shipped", "shipping", "courier"
-    ]
+    delivery_terms = ["arrive", "arrival", "delivery", "eta", "tracking", "track", "order", "dispatch", "shipped"]
     return (("when" in t) and any(term in t for term in delivery_terms)) or any(
-        phrase in t for phrase in [
-            "where is my order", "track my order", "order status",
-            "where is my delivery", "has it shipped", "has it been shipped"
-        ]
+        phrase in t for phrase in ["where is my order", "track my order", "order status"]
     )
 
 def is_stock_code_request(text: str) -> bool:
     t = clean_text(text)
-    triggers = [
-        "product code", "stock code", "sku", "item code", "code for", "code of",
-        "what is the code", "whats the code", "what's the code",
-        "do you have a code", "do you have the code", "product number", "item number"
-    ]
+    triggers = ["product code", "stock code", "sku", "item code", "code for", "code of"]
     return any(x in t for x in triggers)
 
 def normalize_for_product_match(text: str) -> str:
     t = clean_text(text)
     junk_phrases = [
-        "can you tell me", "could you tell me", "please", "what is", "whats", "what's",
+        "can you tell me", "could you tell me", "please", "what is", "whats",
         "the product code", "product code", "stock code", "item code", "sku",
-        "code for", "code of", "product number", "item number"
+        "code for", "code of"
     ]
     for p in junk_phrases:
         t = t.replace(p, " ")
-    t = re.sub(r"\b(of|for|a|an|the|to|me|my|please)\b", " ", t)
+    t = re.sub(r"\b(of|for|a|an|the|to|me|my)\b", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
 def is_minimum_order_question(text: str) -> bool:
     t = clean_text(text)
     triggers = [
-        # core
+        # Core
         "minimum order", "minimum spend", "minimum purchase",
         "min order", "min spend", "order minimum", "minimum order price",
 
-        # broadened
+        # Broader wording
         "minimum value", "minimum order value", "minimum spend value",
         "minimum order amount", "minimum spend amount",
         "minimum basket", "minimum basket value",
         "minimum checkout", "minimum checkout value",
         "what is the minimum", "whats the minimum", "what's the minimum",
         "opening order minimum", "first order minimum", "repeat order minimum",
-        "opening order value", "first order value", "repeat order value",
-        "trade minimum", "trade order minimum", "trade order value",
+        "starting order", "trade minimum", "trade order minimum",
 
-        # trade terms
+        # Trade shorthand
         "moq", "m o q", "minimum order quantity",
     ]
     return any(x in t for x in triggers)
@@ -174,10 +138,22 @@ def is_eco_question(text: str) -> bool:
         "environment", "environmentally friendly",
         "recycled", "recycle", "recyclable",
         "plastic bottles", "fsc",
-        "keeleco", "keel eco",
-        "recycled polyester", "recycled plastic"
+        "keeleco", "keel eco"
     ]
     return any(x in t for x in triggers)
+
+
+# =========================
+# Greeting detection (priority fix)
+# =========================
+def is_greeting(text: str) -> bool:
+    t = clean_text(text)
+    greetings = {
+        "hi", "hello", "hey", "hiya", "yo",
+        "good morning", "good afternoon", "good evening"
+    }
+    # Exact match (e.g. "hi") OR starts-with (e.g. "hi there", "hello keelie")
+    return (t in greetings) or any(t.startswith(g + " ") for g in greetings)
 
 def minimum_order_response() -> str:
     return (
@@ -195,8 +171,10 @@ def minimum_order_response() -> str:
 async def load_stock_rows_from_js():
     global STOCK_ROWS
     try:
+        # Wait for JS promise to finish
         if hasattr(window, "keelieStockReady"):
             await window.keelieStockReady
+
         if hasattr(window, "keelieStockRows"):
             STOCK_ROWS = [dict(r) for r in window.keelieStockRows.to_py()]
         else:
@@ -243,6 +221,9 @@ def lookup_product_by_code(code: str) -> Optional[str]:
 # =========================
 # Collections / ranges (from Keel Toys menu)
 # =========================
+# Notes:
+# - Keeleco sub-ranges share the same recycled-material story.
+# - For non-Keeleco ranges, we describe them accurately but conservatively (no invented claims).
 COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
     # ---- Keeleco family ----
     "keeleco": {
@@ -479,6 +460,7 @@ COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
 }
 
 def detect_collection(cleaned_text: str) -> Optional[str]:
+    # Try to match the longest keys first (so "signature cuddle puppies" wins over "signature")
     keys = sorted(COLLECTION_FACTS.keys(), key=len, reverse=True)
     for k in keys:
         if k in cleaned_text:
@@ -486,6 +468,7 @@ def detect_collection(cleaned_text: str) -> Optional[str]:
     return None
 
 def collections_overview() -> str:
+    # Provide a tidy overview list (grouped)
     kee_sub = [
         "Keeleco Adoptable World",
         "Keeleco Arctic & Sealife",
@@ -533,6 +516,7 @@ def collection_reply(cleaned_text: str) -> str:
     info = COLLECTION_FACTS[key]
     facts = "\n".join([f"• {f}" for f in info["facts"]])
 
+    # Special: if they ask generally about Keeleco eco/recycled, give the richer overview text
     if key == "keeleco" and is_eco_question(cleaned_text):
         return KEELECO_OVERVIEW
 
@@ -562,7 +546,7 @@ def best_faq_answer(user_text: str, threshold: float = 0.55) -> Optional[str]:
     return best if best_score >= threshold else None
 
 # =========================
-# Intent system (broad matching)
+# Intent system (priority-based)
 # =========================
 @dataclass
 class Intent:
@@ -574,149 +558,39 @@ INTENTS = {
     "customer_service": Intent(
         priority=6,
         keywords={
-            "customer service": 6, "support": 5, "help": 3,
-            "agent": 5, "human": 5, "contact": 4,
-            "speak to someone": 6, "talk to someone": 6,
-            "call you": 4, "phone number": 4, "email you": 4
+            "customer service": 6, "support": 4,
+            "agent": 4, "human": 4, "contact": 3
         },
         responses=[
             "Of course! 😊 You can contact Keel Toys customer service here:\n"
             f"{CUSTOMER_SERVICE_URL}"
         ],
     ),
-
     "delivery_time": Intent(
-        priority=6,
+        priority=5,
         keywords={
-            "delivery": 5, "shipping": 5, "ship": 4, "shipped": 5,
-            "dispatch": 5, "dispatch date": 6,
-            "tracking": 6, "track": 5, "courier": 4,
-            "where is my order": 7, "order status": 7,
-            "when will it arrive": 7, "arrival": 5, "eta": 6,
+            "when will it arrive": 6,
+            "when is it arriving": 6,
+            "when is it going to arrive": 7,
+            "going to arrive": 6,
+            "arrival": 4,
+            "eta": 5,
+            "estimated delivery": 5,
+            "delivery date": 5,
+            "arrive": 3,
+            "delivery": 4,
+            "where is my order": 6,
+            "track my order": 5,
+            "tracking": 4,
+            "order status": 5,
+            "dispatch": 4,
+            "shipped": 4,
         },
         responses=[
             "For delivery updates, please check your order confirmation email. "
             "It includes your estimated delivery date and tracking details if available."
         ],
     ),
-
-    "minimum_order": Intent(
-        priority=7,
-        keywords={
-            "minimum order": 7, "minimum order value": 7, "minimum value": 7,
-            "minimum spend": 7, "minimum amount": 7, "minimum basket": 6,
-            "order minimum": 7, "moq": 6, "minimum order quantity": 6,
-            "first order minimum": 7, "repeat order minimum": 7,
-            "opening order minimum": 7,
-        },
-        responses=[minimum_order_response()],
-    ),
-
-    "production": Intent(
-        priority=6,
-        keywords={
-            "where made": 6, "where are they made": 7, "made in": 5,
-            "manufactured": 6, "produced": 6, "factory": 4,
-            "where are your toys made": 8, "where are your toys manufactured": 8
-        },
-        responses=[PRODUCTION_INFO],
-    ),
-
-    "sustainability": Intent(
-        priority=6,
-        keywords={
-            "keeleco": 7, "recycled": 6, "recycle": 5, "eco": 6,
-            "sustainable": 6, "sustainability": 6,
-            "fsc": 5, "recycled polyester": 6, "plastic bottles": 6
-        },
-        responses=[KEELECO_OVERVIEW],
-    ),
-
-    "invoice_copy": Intent(
-        priority=6,
-        keywords={
-            "invoice": 6,
-            "invoice copy": 7,
-            "copy of invoice": 7,
-            "download invoice": 7,
-            "invoice history": 7,
-            "past invoice": 6,
-            "order invoice": 6
-        },
-        responses=[
-            "You can access copies of your invoices by logging in to your account, then navigating to:\n\n"
-            "**Account > My Orders > Invoice History**"
-        ],
-    ),
-
-    "account_login": Intent(
-        priority=5,
-        keywords={
-            "login": 7, "log in": 7, "sign in": 7,
-            "account": 5, "my account": 6,
-            "password": 6, "reset password": 7, "forgot password": 7,
-            "cant log in": 7, "can't log in": 7, "cannot log in": 7,
-        },
-        responses=[
-            "If you’re having trouble accessing your account (login/password), the quickest option is to contact our team so they can help securely:\n"
-            f"{CUSTOMER_SERVICE_URL}"
-        ],
-    ),
-
-    "pricing_trade": Intent(
-        priority=5,
-        keywords={
-            "price list": 7, "prices": 5, "pricing": 6,
-            "trade price": 7, "trade pricing": 7,
-            "wholesale": 6, "cost": 5, "how much": 5,
-            "discount": 5, "terms": 4
-        },
-        responses=[
-            "For trade pricing, price lists, and terms, please contact our team and they’ll help you with the right information for your account:\n"
-            f"{CUSTOMER_SERVICE_URL}"
-        ],
-    ),
-
-    "catalogue": Intent(
-        priority=5,
-        keywords={
-            "catalogue": 7, "catalog": 7, "brochure": 6,
-            "line sheet": 7, "linesheet": 7,
-            "product list": 6, "range list": 6
-        },
-        responses=[
-            "If you’d like a catalogue/line sheet, please contact our team and they’ll send the most up-to-date version:\n"
-            f"{CUSTOMER_SERVICE_URL}"
-        ],
-    ),
-
-    "samples": Intent(
-        priority=4,
-        keywords={
-            "sample": 7, "samples": 7,
-            "tester": 5, "trial": 4,
-            "can i get a sample": 8
-        },
-        responses=[
-            "For sample requests, please contact our team and they’ll advise what’s possible:\n"
-            f"{CUSTOMER_SERVICE_URL}"
-        ],
-    ),
-
-    "returns": Intent(
-        priority=5,
-        keywords={
-            "return": 7, "returns": 7,
-            "refund": 7, "refunds": 7,
-            "faulty": 6, "damaged": 6, "broken": 6,
-            "replacement": 6, "exchange": 6
-        },
-        responses=[
-            "I can help point you in the right direction — for returns/refunds (or damaged/faulty items), please contact our customer service team here:\n"
-            f"{CUSTOMER_SERVICE_URL}"
-        ],
-    ),
-
     "greeting": Intent(
         priority=2,
         keywords={
@@ -724,28 +598,36 @@ INTENTS = {
             "good morning": 2, "good afternoon": 2, "good evening": 2
         },
         responses=[
-            "Hello! 👋 I’m Keelie — the Keel Toys assistant.\n\n"
-            "Here are a few things I can help with:\n"
-            "• **Minimum order values** (minimum value, MOQ, opening order)\n"
-            "• **Stock codes / SKUs** (just tell me the product name)\n"
-            "• **Keeleco® recycled materials & sustainability**\n"
-            "• **Where products are made**\n"
-            "• **Delivery & order queries**\n"
-            "• **Invoices & invoice copies**\n\n"
-            "What can I help you with today?"
+            f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
         ],
     ),
-
-
     "goodbye": Intent(
         priority=1,
         keywords={
-            "bye": 3, "goodbye": 3, "thanks": 2, "thank you": 2, "thx": 2, "cheers": 2
+            "bye": 2, "goodbye": 2, "thanks": 1, "thank you": 1, "thx": 1, "cheers": 1
         },
         responses=[
             f"Thanks for chatting with {COMPANY_NAME}! Have a lovely day 😊"
         ],
     ),
+    "invoice_copy": Intent(
+    priority=6,
+    keywords={
+        "invoice": 5,
+        "last invoice": 7,
+        "copy of my invoice": 7,
+        "invoice copy": 6,
+        "invoice history": 6,
+        "past invoice": 6,
+        "order invoice": 5,
+        "download invoice": 6
+    },
+    responses=[
+        "You can access copies of your invoices by logging in to your account, then navigating to:\n\n"
+        "**Account > My Orders > Invoice History**"
+    ],
+),
+
 }
 
 FALLBACK = (
@@ -753,27 +635,16 @@ FALLBACK = (
     f"Please contact Keel Toys customer service here:\n{CUSTOMER_SERVICE_URL}"
 )
 
-def detect_intent(user_text: str) -> Optional[str]:
-    """
-    Broad, weighted intent detection.
-    Uses fuzzy phrase matching + token overlap (not just exact substring).
-    """
+def detect_intent(cleaned_text: str) -> Optional[str]:
     best_intent = None
-    best_score = 0.0
-
+    best_score = 0
     for name, intent in INTENTS.items():
-        score = 0.0
-        for phrase, weight in intent.keywords.items():
-            m = phrase_match_score(user_text, phrase)
-            if m >= 0.55:
-                score += weight * m
+        score = sum(weight for phrase, weight in intent.keywords.items() if phrase in cleaned_text)
         score *= intent.priority
-
         if score > best_score:
             best_score = score
             best_intent = name
-
-    return best_intent if best_score >= 3.0 else None
+    return best_intent if best_score > 0 else None
 
 # =========================
 # Conversation handling
@@ -782,6 +653,11 @@ def keelie_reply(user_input: str) -> str:
     global PENDING_STOCK_LOOKUP
 
     cleaned = clean_text(user_input)
+
+    # ✅ Greeting MUST run first (prevents misrouting like "hi" → delivery)
+    if is_greeting(user_input):
+        PENDING_STOCK_LOOKUP = False
+        return random.choice(INTENTS["greeting"].responses)
 
     # ✅ Collections / ranges trigger (runs early)
     if any(x in cleaned for x in ["range", "ranges", "collection", "collections", "our collections"]):
@@ -798,7 +674,7 @@ def keelie_reply(user_input: str) -> str:
         PENDING_STOCK_LOOKUP = False
         return random.choice(INTENTS["delivery_time"].responses)
 
-    # ✅ Minimum order override (broadened)
+    # ✅ Minimum order override
     if is_minimum_order_question(user_input):
         PENDING_STOCK_LOOKUP = False
         return minimum_order_response()
@@ -808,9 +684,10 @@ def keelie_reply(user_input: str) -> str:
         PENDING_STOCK_LOOKUP = False
         return PRODUCTION_INFO
 
-    # ✅ Eco / sustainability override
+    # ✅ Eco / sustainability override -> Keeleco overview / Keeleco sub-range
     if is_eco_question(user_input):
         PENDING_STOCK_LOOKUP = False
+        # If they mention a sub-range, answer it; otherwise give Keeleco overview
         if detect_collection(cleaned):
             return collection_reply(cleaned)
         return KEELECO_OVERVIEW
@@ -823,7 +700,7 @@ def keelie_reply(user_input: str) -> str:
         PENDING_STOCK_LOOKUP = False
         return result
 
-    # ✅ Stock code request
+    # ✅ Stock code request -> tries now, or asks for product name
     if is_stock_code_request(user_input):
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
@@ -841,32 +718,20 @@ def keelie_reply(user_input: str) -> str:
             "Please check the code and try again."
         )
 
-    # ✅ Broad intent detection (fuzzy)
-    intent = detect_intent(user_input)
+    # ✅ Intent detection (greetings, support, etc.)
+    intent = detect_intent(cleaned)
     if intent:
         PENDING_STOCK_LOOKUP = False
-        # For “minimum_order/production/sustainability” we already override above,
-        # but leaving them here is harmless.
         return random.choice(INTENTS[intent].responses)
 
     # ✅ FAQ fallback
-    faq = best_faq_answer(user_input)
+    faq = best_faq_answer(cleaned)
     if faq:
         PENDING_STOCK_LOOKUP = False
         return faq
 
-    # ✅ Helpful “nudge” fallback for common unknowns (keeps UX strong)
     PENDING_STOCK_LOOKUP = False
-    return (
-        "I’m not totally sure I’ve understood. I can help with things like:\n"
-        "• Minimum order values\n"
-        "• Stock codes / product codes\n"
-        "• Delivery / tracking guidance\n"
-        "• Keeleco / sustainability\n"
-        "• Invoices, login help, returns\n\n"
-        "Could you rephrase your question in a few words? "
-        f"If you prefer, you can contact our team here:\n{CUSTOMER_SERVICE_URL}"
-    )
+    return FALLBACK
 
 # =========================
 # Wire up the UI
@@ -898,7 +763,9 @@ async def send_message():
         window.keelieClearStatus()
 
     reply = keelie_reply(msg)
+
     window.keelieAddBubble("Keelie", reply)
+
 
 async def boot():
     await load_stock_rows_from_js()
