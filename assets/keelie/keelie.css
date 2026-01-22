@@ -339,10 +339,24 @@
   background:rgba(17, 24, 39, 0.04); /* subtle grey wash */
 }
 
-/* Give list a tiny lift, but not “boxy” */
-.keelie-panel.is-suggesting .keelie-suggest-list{
-  box-shadow:0 8px 18px rgba(0,0,0,.08);
+/* Keep chat visible when suggesting (dim, don't hide) */
+.keelie-panel.is-suggesting .keelie-chat{
+  display:block;            /* ensure it stays visible */
+  opacity:0.22;
+  filter:blur(0.6px);
+  pointer-events:none;      /* prevents scrolling/clicking while choosing */
 }
+
+/* Keep suggestions + input crisp */
+.keelie-panel.is-suggesting .keelie-footer{
+  position:relative;
+  z-index:2;
+}
+
+.keelie-panel.is-suggesting .keelie-suggest-list{
+  box-shadow:0 10px 24px rgba(0,0,0,.10);
+}
+
 
 /* Tighten spacing between list and input */
 .keelie-footer{
