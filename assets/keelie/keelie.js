@@ -250,10 +250,20 @@ function mountWidget() {
       // Use mousedown to avoid blur before selection
       btn.addEventListener("mousedown", (e) => {
         e.preventDefault();
+
+        // Put suggestion into the input
         inputEl.value = text;
-        inputEl.focus();
+
+        // Close suggestions + return UI to normal
         hideSuggest();
+
+        // ✅ Send immediately
+        // Use a micro-delay so the UI updates cleanly before sending
+        setTimeout(() => {
+          doSend();
+        }, 0);
       });
+
 
       suggestList.appendChild(btn);
     });
