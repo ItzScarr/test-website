@@ -70,6 +70,14 @@ function mountWidget() {
           <button class="keelie-send" id="keelie-send">Send</button>
         </div>
 
+        <!-- ✅ Auto-suggest -->
+        <div class="keelie-suggest" id="keelie-suggest" style="display:none;">
+          <div class="keelie-suggest-list" id="keelie-suggest-list"></div>
+        </div>
+        <div class="keelie-suggest-hint" id="keelie-suggest-hint" style="display:none;">
+          Tip: use ↑/↓ then Enter
+        </div>
+
         <!-- ✅ Two-stage status indicators -->
         <div class="keelie-status" id="keelie-thinking" style="display:none;">Keelie is thinking…</div>
         <div class="keelie-status" id="keelie-typing" style="display:none;">Keelie is typing…</div>
@@ -78,6 +86,7 @@ function mountWidget() {
           This assistant runs in your browser. Messages aren’t sent to a server.
         </div>
       </div>
+
     </div>
   `);
 
@@ -90,6 +99,138 @@ function mountWidget() {
   const closeBtn = panel.querySelector(".keelie-close");
   const thinkingEl = panel.querySelector("#keelie-thinking");
   const typingEl = panel.querySelector("#keelie-typing");
+
+  // ==============================
+// Auto-suggest (type-ahead)
+// ==============================
+const suggestWrap = panel.querySelector("#keelie-suggest");
+const suggestList = panel.querySelector("#keelie-suggest-list");
+const suggestHint = panel.querySelector("#keelie-suggest-hint");
+
+// Edit this list anytime (these are the suggestions users will see)
+const SUGGESTIONS = [
+  "What’s the minimum order value?",
+  "What’s the minimum value?",
+  "What is your MOQ?",
+  "Where are your toys produced?",
+  "Tell me about Keeleco and recycled materials",
+  "What’s the stock code for Polar Bear Plush 20cm?",
+  "I have a product name — can you find the stock code?",
+  "Where is my order?",
+  "How do I track my order?",
+  "How do I download an invoice?",
+  "What are your opening hours?",
+  "How do I contact customer service?"
+];
+
+let activeSuggestIndex = -1;
+let currentSuggestItems = [];
+
+function norm(s){
+  return String(s || "").toLowerCase().trim();
+}
+
+function scoreSuggestion(query, item){
+  // Simple ranking:
+  //  - startsWith gets best
+  //  - includes gets next
+  //  - token overlap gets a small boost
+  const q = norm(query);
+  const it = norm(item);
+  if (!q) return 0;
+
+  if (it.startsWith(q)) return 100;
+  if (it.includes(q)) return 70;
+
+  const qTokens = new Set(q.split(/\s+/).filter(Boolean));
+  const iTokens = new Set(it.split(/\s+/).filter(Boolean));
+  let overlap = 0;
+  qTokens.forEach(t => { if (iTokens.has(t)) overlap++; });
+
+  return overlap > 0 ? (40 + overlap) : 0;
+}
+
+function hideSuggest(){
+  suggestWrap.style.display = "none";
+  suggestHint.style.display = "none";
+  suggestList.innerHTML = "";
+  activeSuggestIndex = -1;
+  currentSuggestItems = [];
+}
+
+function renderSuggest(items){
+  currentSuggestItems = items;
+  activeSuggestIndex = -1;
+
+  if (!items.length){
+    hideSuggest();
+    return;
+  }
+
+  suggestList.innerHTML = "";
+  items.forEach((text, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "keelie-suggest-item";
+    btn.textContent = text;
+
+    btn.addEventListener("mousedown", (e) => {
+      // mousedown (not click) prevents input blur issues
+      e.preventDefault();
+      inputEl.value = text;
+      inputEl.focus();
+      hideSuggest();
+    });
+
+    suggestList.appendChild(btn);
+  });
+
+  suggestWrap.style.display = "block";
+  suggestHint.style.display = "block";
+}
+
+function updateSuggest(){
+  const q = inputEl.value || "";
+  const query = q.trim();
+
+  // Don’t show suggestions for very short input
+  if (query.length < 2){
+    hideSuggest();
+    return;
+  }
+
+  const ranked = SUGGESTIONS
+    .map(item => ({ item, s: scoreSuggestion(query, item) }))
+    .filter(x => x.s > 0)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 6)
+    .map(x => x.item);
+
+  renderSuggest(ranked);
+}
+
+function setActiveSuggest(nextIndex){
+  const children = Array.from(suggestList.children);
+  if (!children.length) return;
+
+  activeSuggestIndex = nextIndex;
+
+  children.forEach((el, i) => {
+    if (i === activeSuggestIndex) el.classList.add("is-active");
+    else el.classList.remove("is-active");
+  });
+}
+
+function acceptActiveSuggest(){
+  if (activeSuggestIndex < 0) return false;
+  const chosen = currentSuggestItems[activeSuggestIndex];
+  if (!chosen) return false;
+  inputEl.value = chosen;
+  inputEl.focus();
+  hideSuggest();
+  return true;
+}
+
 
   function addBubble(who, text) {
     const row = document.createElement("div");
@@ -193,6 +334,8 @@ window.keelieClearStatus = removeStatus;
   }, 10000);
 
   async function doSend() {
+    hideSuggest();
+
     if (!pythonReady || typeof window.keelieSend !== "function") {
       addBubble("Keelie", "I’m still loading… please try again in a moment.");
       return;
@@ -200,8 +343,55 @@ window.keelieClearStatus = removeStatus;
     await window.keelieSend();
   }
 
+
   sendBtn.addEventListener("click", doSend);
-  inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
+  inputEl.addEventListener("input", () => updateSuggest());
+
+  inputEl.addEventListener("keydown", (e) => {
+    // If suggestions are open, allow keyboard navigation
+    if (suggestWrap.style.display !== "none") {
+      const max = currentSuggestItems.length - 1;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = activeSuggestIndex < max ? activeSuggestIndex + 1 : 0;
+        setActiveSuggest(next);
+        return;
+      }
+
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const next = activeSuggestIndex > 0 ? activeSuggestIndex - 1 : max;
+        setActiveSuggest(next);
+        return;
+      }
+
+      if (e.key === "Enter") {
+        // If a suggestion is highlighted, accept it first
+        if (acceptActiveSuggest()) return;
+        // otherwise send
+        doSend();
+        return;
+      }
+
+      if (e.key === "Escape") {
+        hideSuggest();
+        return;
+      }
+    }
+
+    // Normal behaviour
+    if (e.key === "Enter") doSend();
+  });
+
+  document.addEventListener("click", (e) => {
+  // Close suggestions if click outside the input + suggestion area
+  if (!panel.contains(e.target)) return;
+  if (e.target === inputEl) return;
+  if (suggestWrap.contains(e.target)) return;
+  hideSuggest();
+});
+
 
   // Start python
   showLoading();
@@ -219,7 +409,19 @@ window.keelieClearStatus = removeStatus;
       clearTimeout(failTimer);
       clearInterval(readyCheck);
 
-      addBubble("Keelie", "Hello! 👋 I’m Keelie. How can I help you today?");
+      addBubble(
+        "Keelie",
+        "Hello! 👋 I’m Keelie — the Keel Toys assistant.\n\n"
+        + "I can help you with things like:\n"
+        + "• **Minimum order values** (e.g. *What’s the minimum order value?*)\n"
+        + "• **Stock codes / SKUs** (e.g. *What’s the stock code for Polar Bear Plush 20cm?*)\n"
+        + "• **Keeleco® recycled materials & sustainability**\n"
+        + "• **Where our toys are made**\n"
+        + "• **Delivery & order questions** (e.g. *Where is my order?*)\n"
+        + "• **Invoices** (e.g. *How do I download an invoice?*)\n\n"
+        + "What would you like to ask?"
+      );
+
     }
   }, 250);
 }

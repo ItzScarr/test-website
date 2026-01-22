@@ -720,13 +720,22 @@ INTENTS = {
     "greeting": Intent(
         priority=2,
         keywords={
-            "hi": 3, "hello": 3, "hey": 3, "hiya": 3,
-            "good morning": 3, "good afternoon": 3, "good evening": 3
+            "hi": 2, "hello": 2, "hey": 2, "hiya": 2,
+            "good morning": 2, "good afternoon": 2, "good evening": 2
         },
         responses=[
-            f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
+            "Hello! 👋 I’m Keelie — the Keel Toys assistant.\n\n"
+            "Here are a few things I can help with:\n"
+            "• **Minimum order values** (minimum value, MOQ, opening order)\n"
+            "• **Stock codes / SKUs** (just tell me the product name)\n"
+            "• **Keeleco® recycled materials & sustainability**\n"
+            "• **Where products are made**\n"
+            "• **Delivery & order queries**\n"
+            "• **Invoices & invoice copies**\n\n"
+            "What can I help you with today?"
         ],
     ),
+
 
     "goodbye": Intent(
         priority=1,
