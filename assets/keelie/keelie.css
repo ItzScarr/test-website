@@ -311,6 +311,68 @@
   z-index:10000;
 }
 
+/* =====================================================
+   Clean autosuggest mode
+   When suggestions open: only input + list feels visible
+   ===================================================== */
+
+/* Dropdown: tighter, cleaner */
+.keelie-suggest{
+  position:absolute;
+  left:12px;
+  right:12px;
+  bottom:54px;              /* stays above the input */
+  z-index:10000;
+}
+
+.keelie-suggest-list{
+  background:#fff;
+  border:1px solid var(--keelie-border);
+  border-radius:14px;
+  box-shadow:var(--keelie-shadow-soft);
+  overflow:auto;
+  max-height:160px;         /* keeps it compact */
+}
+
+.keelie-suggest-item{
+  width:100%;
+  text-align:left;
+  background:#fff;
+  border:none;
+  padding:10px 12px;
+  font-size:13px;
+  color:var(--keelie-text);
+  cursor:pointer;
+  line-height:1.25;
+}
+
+.keelie-suggest-item + .keelie-suggest-item{
+  border-top:1px solid var(--keelie-border);
+}
+
+.keelie-suggest-item:hover,
+.keelie-suggest-item.is-active{
+  background:#f3f4f6;
+}
+
+/* Hide the hint completely (clutter + overlaps) */
+.keelie-suggest-hint{
+  display:none !important;
+}
+
+/* When suggesting: calm the chat + hide footer clutter */
+.keelie-panel.is-suggesting .keelie-chat{
+  opacity:.15;
+  filter:blur(1px);
+  pointer-events:none;
+}
+
+.keelie-panel.is-suggesting .keelie-privacy,
+.keelie-panel.is-suggesting .keelie-status{
+  display:none !important;
+}
+
+
 /* -----------------------------
    Mobile tweaks
    ----------------------------- */

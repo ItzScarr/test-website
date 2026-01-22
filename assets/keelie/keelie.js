@@ -197,14 +197,38 @@ function mountWidget() {
     return overlap > 0 ? (40 + overlap) : 0;
   }
 
-  function hideSuggest() {
-    if (!SUGGEST_ENABLED) return;
-    suggestWrap.style.display = "none";
-    suggestHint.style.display = "none";
-    suggestList.innerHTML = "";
-    activeSuggestIndex = -1;
-    currentSuggestItems = [];
+function renderSuggest(items) {
+  if (!SUGGEST_ENABLED) return;
+
+  currentSuggestItems = items;
+  activeSuggestIndex = -1;
+
+  if (!items.length) {
+    hideSuggest();
+    return;
   }
+
+  suggestList.innerHTML = "";
+  items.forEach((text) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "keelie-suggest-item";
+    btn.textContent = text;
+
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      inputEl.value = text;
+      inputEl.focus();
+      hideSuggest();
+    });
+
+    suggestList.appendChild(btn);
+  });
+
+  suggestWrap.style.display = "block";
+  panel.classList.add("is-suggesting");
+}
+
 
   function setActiveSuggest(nextIndex) {
     if (!SUGGEST_ENABLED) return;
@@ -359,7 +383,7 @@ function mountWidget() {
   sendBtn.addEventListener("click", doSend);
 
   // Autosuggest listeners
-  inputEl.addEventListener("focus", () => updateSuggest(true));
+  inputEl.addEventListener("focus", () => updateSuggest(false));
   inputEl.addEventListener("input", () => updateSuggest(false));
 
   inputEl.addEventListener("keydown", (e) => {
