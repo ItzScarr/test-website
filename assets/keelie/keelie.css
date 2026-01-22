@@ -164,3 +164,9 @@
   font-weight:600; /* adjust to 500–700 if you want */
 }
 
+.keelie-status{
+  font-size:12px;
+  color:#6b7280;
+  padding:6px 2px 0 2px;
+}
+

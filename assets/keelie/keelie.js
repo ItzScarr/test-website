@@ -27,18 +27,15 @@ function escapeHtml(s) {
 function formatKeelie(text) {
   let safe = escapeHtml(text);
 
-  // Bold: **text** -> span class
+  // Bold: **text**
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<span class="keelie-bold">$1</span>');
 
-  // Newlines -> <br>
+  // Newlines
   safe = safe.replace(/\n/g, "<br>");
 
   return safe;
 }
 
-// ==============================
-// Widget mount
-// ==============================
 function mountWidget() {
   const launcher = el(`
     <button class="keelie-launcher" aria-label="Open chat">
@@ -73,9 +70,11 @@ function mountWidget() {
           <button class="keelie-send" id="keelie-send">Send</button>
         </div>
 
-        <div class="keelie-typing" id="keelie-typing" style="display:none;">Keelie is typing…</div>
+        <!-- ✅ Two-stage status indicators -->
+        <div class="keelie-status" id="keelie-thinking" style="display:none;">Keelie is thinking…</div>
+        <div class="keelie-status" id="keelie-typing" style="display:none;">Keelie is typing…</div>
 
-        <div class="keelie-privacy" id="keelie-privacy">
+        <div class="keelie-privacy">
           This assistant runs in your browser. Messages aren’t sent to a server.
         </div>
       </div>
@@ -89,11 +88,9 @@ function mountWidget() {
   const inputEl = panel.querySelector("#keelie-text");
   const sendBtn = panel.querySelector("#keelie-send");
   const closeBtn = panel.querySelector(".keelie-close");
+  const thinkingEl = panel.querySelector("#keelie-thinking");
   const typingEl = panel.querySelector("#keelie-typing");
 
-  // ==============================
-  // Chat bubble rendering
-  // ==============================
   function addBubble(who, text) {
     const row = document.createElement("div");
     row.className = `keelie-msg ${who === "You" ? "you" : "bot"}`;
@@ -109,15 +106,15 @@ function mountWidget() {
 
   // Expose to Python
   window.keelieAddBubble = addBubble;
-  window.keelieSetTyping = (on) => {
-    typingEl.style.display = on ? "block" : "none";
-  };
+
+  // ✅ New: thinking/typing toggles
+  window.keelieSetThinking = (on) => { thinkingEl.style.display = on ? "block" : "none"; };
+  window.keelieSetTyping = (on) => { typingEl.style.display = on ? "block" : "none"; };
+
   window.keelieGetInput = () => inputEl.value || "";
   window.keelieClearInput = () => { inputEl.value = ""; };
 
-  // ==============================
   // Open/close
-  // ==============================
   let lastFocused = null;
 
   function openPanel() {
@@ -128,10 +125,9 @@ function mountWidget() {
 
   function closePanel() {
     panel.classList.remove("is-open");
+    window.keelieSetThinking(false);
     window.keelieSetTyping(false);
-    if (lastFocused && typeof lastFocused.focus === "function") {
-      lastFocused.focus();
-    }
+    if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
   }
 
   launcher.addEventListener("click", () => {
@@ -139,39 +135,26 @@ function mountWidget() {
   });
   closeBtn.addEventListener("click", closePanel);
 
-  // ✅ Esc-to-close
+  // Esc-to-close
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && panel.classList.contains("is-open")) {
-      closePanel();
-    }
+    if (e.key === "Escape" && panel.classList.contains("is-open")) closePanel();
   });
 
-  // ==============================
   // Loading state + fallback
-  // ==============================
   let pythonReady = false;
 
-  function showLoading() {
-    addBubble("Keelie", "Loading assistant…");
-  }
-
+  function showLoading() { addBubble("Keelie", "Loading assistant…"); }
   function showFailed() {
     addBubble(
       "Keelie",
-      "Sorry — the assistant didn’t load properly.\n\n" +
-      "You can still contact our team here:\n" +
-      CONTACT_URL
+      "Sorry — the assistant didn’t load properly.\n\nYou can contact our team here:\n" + CONTACT_URL
     );
   }
 
-  // If Python hook isn't ready within 10 seconds, show fallback
   const failTimer = setTimeout(() => {
     if (!pythonReady) showFailed();
   }, 10000);
 
-  // ==============================
-  // Send handler
-  // ==============================
   async function doSend() {
     if (!pythonReady || typeof window.keelieSend !== "function") {
       addBubble("Keelie", "I’m still loading… please try again in a moment.");
@@ -181,27 +164,20 @@ function mountWidget() {
   }
 
   sendBtn.addEventListener("click", doSend);
-  inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") doSend();
-  });
+  inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
 
-  // ==============================
-  // Load Python runtime
-  // ==============================
+  // Start python
   showLoading();
-
   const py = document.createElement("py-script");
   py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py`);
   document.body.appendChild(py);
 
-  // Mark python ready when runtime sets keelieSend
   const readyCheck = setInterval(() => {
     if (typeof window.keelieSend === "function") {
       pythonReady = true;
       clearTimeout(failTimer);
       clearInterval(readyCheck);
 
-      // Replace the initial loading message with a friendly greeting
       addBubble("Keelie", "Hello! 👋 I’m Keelie. How can I help you today?");
     }
   }, 250);
