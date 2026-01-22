@@ -1,3 +1,4 @@
+// File: assets/keelie/keelie.js
 import "https://pyscript.net/releases/2024.9.2/core.js";
 
 const BASE_PATH = "assets/keelie";
@@ -27,10 +28,10 @@ function escapeHtml(s) {
 function formatKeelie(text) {
   let safe = escapeHtml(text);
 
-  // Bold: **text**
+  // **bold**
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<span class="keelie-bold">$1</span>');
 
-  // Newlines
+  // newlines
   safe = safe.replace(/\n/g, "<br>");
 
   return safe;
@@ -46,6 +47,7 @@ function mountWidget() {
     </button>
   `);
 
+  // NOTE: autosuggest container is ABOVE input row (in-flow, no overlap)
   const panel = el(`
     <div class="keelie-panel" role="dialog" aria-label="Keelie chat" aria-modal="true">
       <div class="keelie-header">
@@ -55,7 +57,7 @@ function mountWidget() {
           <span>Keel Toys assistant</span>
         </div>
 
-        <a class="keelie-contact" href="${CONTACT_URL}" target="_blank" rel="noopener noreferrer" aria-label="Contact Keel Toys">
+        <a class="keelie-contact" href="${CONTACT_URL}" target="_blank" rel="noopener noreferrer">
           Contact
         </a>
 
@@ -65,7 +67,6 @@ function mountWidget() {
       <div class="keelie-chat" id="keelie-chat"></div>
 
       <div class="keelie-footer">
-        <!-- ✅ Autosuggest sits ABOVE the input (in-flow, no overlap) -->
         <div class="keelie-suggest" id="keelie-suggest" style="display:none;">
           <div class="keelie-suggest-list" id="keelie-suggest-list"></div>
         </div>
@@ -75,7 +76,6 @@ function mountWidget() {
           <button class="keelie-send" id="keelie-send">Send</button>
         </div>
 
-        <!-- ✅ Two-stage status indicators -->
         <div class="keelie-status" id="keelie-thinking" style="display:none;">Keelie is thinking…</div>
         <div class="keelie-status" id="keelie-typing" style="display:none;">Keelie is typing…</div>
 
@@ -94,10 +94,13 @@ function mountWidget() {
   const sendBtn = panel.querySelector("#keelie-send");
   const closeBtn = panel.querySelector(".keelie-close");
 
-  // Status elements exist in DOM but we use inline status bubbles via python hooks too
+  // Status lines exist for fallback; Python also uses inline status bubbles via window.keelieShowStatus
   const thinkingEl = panel.querySelector("#keelie-thinking");
   const typingEl = panel.querySelector("#keelie-typing");
 
+  // ==============================
+  // Chat bubbles
+  // ==============================
   function addBubble(who, text) {
     const row = document.createElement("div");
     row.className = `keelie-msg ${who === "You" ? "you" : "bot"}`;
@@ -111,19 +114,16 @@ function mountWidget() {
     chatEl.scrollTop = chatEl.scrollHeight;
   }
 
-  // Expose to Python
+  // Expose to Python runtime
   window.keelieAddBubble = addBubble;
   window.keelieGetInput = () => inputEl.value || "";
   window.keelieClearInput = () => { inputEl.value = ""; };
 
-  // ==============================
-  // Inline status bubbles (used by Python)
-  // ==============================
+  // Inline status bubble (used by Python)
   let statusBubble = null;
 
   function showStatus(text) {
-    removeStatus();
-
+    clearStatus();
     const row = document.createElement("div");
     row.className = "keelie-msg bot keelie-status-msg";
 
@@ -138,19 +138,18 @@ function mountWidget() {
     statusBubble = row;
   }
 
-  function removeStatus() {
-    if (statusBubble && statusBubble.parentNode) {
-      statusBubble.parentNode.removeChild(statusBubble);
-    }
+  function clearStatus() {
+    if (statusBubble && statusBubble.parentNode) statusBubble.parentNode.removeChild(statusBubble);
     statusBubble = null;
   }
 
   window.keelieShowStatus = showStatus;
-  window.keelieClearStatus = removeStatus;
+  window.keelieClearStatus = clearStatus;
 
   // ==============================
-  // Autosuggest (SAFE + no overlap with input)
-  // Shows only after 2+ chars typed
+  // Autosuggest (professional + safe)
+  // - shows only after 2+ chars
+  // - click suggestion: fills input + sends (via sendBtn.click())
   // ==============================
   const suggestWrap = panel.querySelector("#keelie-suggest");
   const suggestList = panel.querySelector("#keelie-suggest-list");
@@ -194,7 +193,7 @@ function mountWidget() {
     return overlap > 0 ? (40 + overlap) : 0;
   }
 
-  // ✅ IMPORTANT: function declaration is hoisted, so it always exists
+  // Function declaration (hoisted) so it can never be "not defined"
   function hideSuggest() {
     if (!SUGGEST_ENABLED) return;
     suggestWrap.style.display = "none";
@@ -224,8 +223,10 @@ function mountWidget() {
     if (!chosen) return false;
 
     inputEl.value = chosen;
-    inputEl.focus();
     hideSuggest();
+
+    // ✅ Guaranteed send: click the actual Send button
+    setTimeout(() => sendBtn.click(), 0);
     return true;
   }
 
@@ -241,29 +242,23 @@ function mountWidget() {
     }
 
     suggestList.innerHTML = "";
+
     items.forEach((text) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "keelie-suggest-item";
       btn.textContent = text;
 
-      // Use mousedown to avoid blur before selection
-      btn.addEventListener("mousedown", (e) => {
+      // pointerdown is the most reliable across devices;
+      // preventDefault stops input blur issues.
+      btn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
-
-        // Put suggestion into the input
         inputEl.value = text;
-
-        // Close suggestions + return UI to normal
         hideSuggest();
 
-        // ✅ Send immediately
-        // Use a micro-delay so the UI updates cleanly before sending
-        setTimeout(() => {
-          doSend();
-        }, 0);
+        // ✅ Guaranteed send: click Send button
+        setTimeout(() => sendBtn.click(), 0);
       });
-
 
       suggestList.appendChild(btn);
     });
@@ -277,7 +272,7 @@ function mountWidget() {
 
     const query = (inputEl.value || "").trim();
 
-    // Only show after 2+ chars (prevents clutter)
+    // Only show after 2+ chars
     if (query.length < 2) {
       hideSuggest();
       return;
@@ -294,24 +289,21 @@ function mountWidget() {
   }
 
   // ==============================
-  // Open/close
+  // Panel open/close
   // ==============================
   let lastFocused = null;
 
   function openPanel() {
     lastFocused = document.activeElement;
     panel.classList.add("is-open");
-    inputEl.focus(); // ✅ no autosuggest on focus
+    inputEl.focus();
   }
 
   function closePanel() {
     panel.classList.remove("is-open");
     hideSuggest();
-    removeStatus();
-
-    if (lastFocused && typeof lastFocused.focus === "function") {
-      lastFocused.focus();
-    }
+    clearStatus();
+    if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
   }
 
   launcher.addEventListener("click", () => {
@@ -320,7 +312,7 @@ function mountWidget() {
 
   closeBtn.addEventListener("click", closePanel);
 
-  // Escape closes suggest first, then panel
+  // Escape: close suggest first, then close panel
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (!panel.classList.contains("is-open")) return;
@@ -332,25 +324,19 @@ function mountWidget() {
     closePanel();
   });
 
+  // Click-away inside panel hides suggestions (not panel)
+  document.addEventListener("click", (e) => {
+    if (!SUGGEST_ENABLED) return;
+    if (!panel.contains(e.target)) return;
+    if (e.target === inputEl) return;
+    if (suggestWrap.contains(e.target)) return;
+    hideSuggest();
+  });
+
   // ==============================
-  // Loading state + fallback
+  // Send flow
   // ==============================
   let pythonReady = false;
-
-  function showLoading() {
-    addBubble("Keelie", "Loading assistant…");
-  }
-
-  function showFailed() {
-    addBubble(
-      "Keelie",
-      "Sorry — the assistant didn’t load properly.\n\nYou can contact our team here:\n" + CONTACT_URL
-    );
-  }
-
-  const failTimer = setTimeout(() => {
-    if (!pythonReady) showFailed();
-  }, 10000);
 
   async function doSend() {
     hideSuggest();
@@ -364,11 +350,10 @@ function mountWidget() {
 
   sendBtn.addEventListener("click", doSend);
 
-  // Typing triggers suggest
   inputEl.addEventListener("input", () => updateSuggest());
 
-  // Keyboard navigation
   inputEl.addEventListener("keydown", (e) => {
+    // If suggestions are open, allow navigation + Enter to accept (and send)
     if (SUGGEST_ENABLED && suggestWrap.style.display !== "none") {
       const max = currentSuggestItems.length - 1;
 
@@ -387,35 +372,39 @@ function mountWidget() {
       }
 
       if (e.key === "Enter") {
-        // If suggestion is highlighted, accept it; otherwise send message
+        // Accept highlighted suggestion -> sends automatically
         if (acceptActiveSuggest()) return;
+        // Otherwise send typed text
+        e.preventDefault();
         doSend();
         return;
       }
     }
 
-    if (e.key === "Enter") doSend();
-  });
-
-  // Click-away hides suggestions (but not panel)
-  document.addEventListener("click", (e) => {
-    if (!SUGGEST_ENABLED) return;
-    if (!panel.contains(e.target)) return;
-    if (e.target === inputEl) return;
-    if (suggestWrap.contains(e.target)) return;
-    hideSuggest();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      doSend();
+    }
   });
 
   // ==============================
-  // Start Python
+  // Boot + Python runtime
   // ==============================
-  showLoading();
+  addBubble("Keelie", "Loading assistant…");
+
   const py = document.createElement("py-script");
-
-  // Cache-bust Python runtime too (bump this if you edit Python)
+  // bump this ?v= if you change python file
   py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=7`);
-
   document.body.appendChild(py);
+
+  const failTimer = setTimeout(() => {
+    if (!pythonReady) {
+      addBubble(
+        "Keelie",
+        "Sorry — the assistant didn’t load properly.\n\nYou can contact our team here:\n" + CONTACT_URL
+      );
+    }
+  }, 10000);
 
   const readyCheck = setInterval(() => {
     if (typeof window.keelieSend === "function") {
