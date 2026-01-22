@@ -86,7 +86,6 @@ function mountWidget() {
           This assistant runs in your browser. Messages aren’t sent to a server.
         </div>
       </div>
-
     </div>
   `);
 
@@ -100,14 +99,16 @@ function mountWidget() {
   const thinkingEl = panel.querySelector("#keelie-thinking");
   const typingEl = panel.querySelector("#keelie-typing");
 
-  // ==============================
-// Auto-suggest (type-ahead)
+// ==============================
+// Auto-suggest (type-ahead) — SAFE MODE
+// Will NEVER break the widget if elements are missing.
 // ==============================
 const suggestWrap = panel.querySelector("#keelie-suggest");
 const suggestList = panel.querySelector("#keelie-suggest-list");
 const suggestHint = panel.querySelector("#keelie-suggest-hint");
+const SUGGEST_ENABLED = !!(suggestWrap && suggestList && suggestHint);
 
-// Edit this list anytime (these are the suggestions users will see)
+// Edit these suggestions anytime
 const SUGGESTIONS = [
   "What’s the minimum order value?",
   "What’s the minimum value?",
@@ -115,7 +116,7 @@ const SUGGESTIONS = [
   "Where are your toys produced?",
   "Tell me about Keeleco and recycled materials",
   "What’s the stock code for Polar Bear Plush 20cm?",
-  "I have a product name — can you find the stock code?",
+  "How do I find a stock code / SKU?",
   "Where is my order?",
   "How do I track my order?",
   "How do I download an invoice?",
@@ -126,22 +127,22 @@ const SUGGESTIONS = [
 let activeSuggestIndex = -1;
 let currentSuggestItems = [];
 
-function norm(s){
+function norm(s) {
   return String(s || "").toLowerCase().trim();
 }
 
-function scoreSuggestion(query, item){
-  // Simple ranking:
-  //  - startsWith gets best
-  //  - includes gets next
-  //  - token overlap gets a small boost
+function scoreSuggestion(query, item) {
   const q = norm(query);
   const it = norm(item);
   if (!q) return 0;
 
+  // strongest: starts with
   if (it.startsWith(q)) return 100;
+
+  // next: includes
   if (it.includes(q)) return 70;
 
+  // small boost: token overlap
   const qTokens = new Set(q.split(/\s+/).filter(Boolean));
   const iTokens = new Set(it.split(/\s+/).filter(Boolean));
   let overlap = 0;
@@ -150,7 +151,8 @@ function scoreSuggestion(query, item){
   return overlap > 0 ? (40 + overlap) : 0;
 }
 
-function hideSuggest(){
+function hideSuggest() {
+  if (!SUGGEST_ENABLED) return;
   suggestWrap.style.display = "none";
   suggestHint.style.display = "none";
   suggestList.innerHTML = "";
@@ -158,24 +160,52 @@ function hideSuggest(){
   currentSuggestItems = [];
 }
 
-function renderSuggest(items){
+function setActiveSuggest(nextIndex) {
+  if (!SUGGEST_ENABLED) return;
+  const children = Array.from(suggestList.children);
+  if (!children.length) return;
+
+  activeSuggestIndex = nextIndex;
+
+  children.forEach((el, i) => {
+    if (i === activeSuggestIndex) el.classList.add("is-active");
+    else el.classList.remove("is-active");
+  });
+}
+
+function acceptActiveSuggest() {
+  if (!SUGGEST_ENABLED) return false;
+  if (activeSuggestIndex < 0) return false;
+  const chosen = currentSuggestItems[activeSuggestIndex];
+  if (!chosen) return false;
+
+  inputEl.value = chosen;
+  inputEl.focus();
+  hideSuggest();
+  return true;
+}
+
+function renderSuggest(items) {
+  if (!SUGGEST_ENABLED) return;
+
   currentSuggestItems = items;
   activeSuggestIndex = -1;
 
-  if (!items.length){
+  if (!items.length) {
     hideSuggest();
     return;
   }
 
   suggestList.innerHTML = "";
+
   items.forEach((text, idx) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "keelie-suggest-item";
     btn.textContent = text;
 
+    // mousedown prevents input blur issues
     btn.addEventListener("mousedown", (e) => {
-      // mousedown (not click) prevents input blur issues
       e.preventDefault();
       inputEl.value = text;
       inputEl.focus();
@@ -189,12 +219,13 @@ function renderSuggest(items){
   suggestHint.style.display = "block";
 }
 
-function updateSuggest(){
-  const q = inputEl.value || "";
-  const query = q.trim();
+function updateSuggest() {
+  if (!SUGGEST_ENABLED) return;
+
+  const query = (inputEl.value || "").trim();
 
   // Don’t show suggestions for very short input
-  if (query.length < 2){
+  if (query.length < 2) {
     hideSuggest();
     return;
   }
@@ -333,23 +364,23 @@ window.keelieClearStatus = removeStatus;
     if (!pythonReady) showFailed();
   }, 10000);
 
-  async function doSend() {
-    hideSuggest();
+async function doSend() {
+  hideSuggest();
 
-    if (!pythonReady || typeof window.keelieSend !== "function") {
-      addBubble("Keelie", "I’m still loading… please try again in a moment.");
-      return;
-    }
-    await window.keelieSend();
+  if (!pythonReady || typeof window.keelieSend !== "function") {
+    addBubble("Keelie", "I’m still loading… please try again in a moment.");
+    return;
   }
+  await window.keelieSend();
+}
 
 
   sendBtn.addEventListener("click", doSend);
+  // Update suggestions as user types
   inputEl.addEventListener("input", () => updateSuggest());
 
   inputEl.addEventListener("keydown", (e) => {
-    // If suggestions are open, allow keyboard navigation
-    if (suggestWrap.style.display !== "none") {
+    if (SUGGEST_ENABLED && suggestWrap.style.display !== "none") {
       const max = currentSuggestItems.length - 1;
 
       if (e.key === "ArrowDown") {
@@ -369,7 +400,7 @@ window.keelieClearStatus = removeStatus;
       if (e.key === "Enter") {
         // If a suggestion is highlighted, accept it first
         if (acceptActiveSuggest()) return;
-        // otherwise send
+        // Otherwise send
         doSend();
         return;
       }
@@ -384,14 +415,23 @@ window.keelieClearStatus = removeStatus;
     if (e.key === "Enter") doSend();
   });
 
+  // Close suggestions if user clicks elsewhere inside the panel
   document.addEventListener("click", (e) => {
-  // Close suggestions if click outside the input + suggestion area
-  if (!panel.contains(e.target)) return;
-  if (e.target === inputEl) return;
-  if (suggestWrap.contains(e.target)) return;
-  hideSuggest();
-});
+    if (!SUGGEST_ENABLED) return;
+    if (!panel.contains(e.target)) return;
+    if (e.target === inputEl) return;
+    if (suggestWrap.contains(e.target)) return;
+    hideSuggest();
+  });
 
+
+  document.addEventListener("click", (e) => {
+    if (!SUGGEST_ENABLED) return;
+    if (!panel.contains(e.target)) return;
+    if (e.target === inputEl) return;
+    if (suggestWrap.contains(e.target)) return;
+    hideSuggest();
+  });
 
   // Start python
   showLoading();

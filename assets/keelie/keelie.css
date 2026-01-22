@@ -206,18 +206,21 @@
    ----------------------------- */
 
 /* Make footer a positioning context */
+/* =====================================================
+   Auto-suggest dropdown (never covers input)
+   ===================================================== */
+
+/* Footer becomes positioning anchor */
 .keelie-footer{
   position:relative;
 }
 
-/* Wrapper is now absolutely positioned ABOVE the input row */
+/* Dropdown is pinned above the input row */
 .keelie-suggest{
   position:absolute;
   left:12px;
   right:12px;
-
-  /* Input row is ~38px tall; add spacing so dropdown sits above it */
-  bottom:56px; /* 38px input + ~8px gap + extra breathing room */
+  bottom:56px; /* input row (~38px) + gap */
   z-index:10000;
 }
 
@@ -239,9 +242,6 @@
   font-size:13px;
   color:var(--keelie-text);
   cursor:pointer;
-  display:flex;
-  align-items:flex-start;
-  gap:8px;
 }
 
 .keelie-suggest-item:hover{
@@ -252,12 +252,11 @@
   background:#f3f4f6;
 }
 
-/* Hint sits under the list but still above the input row */
 .keelie-suggest-hint{
   position:absolute;
   left:12px;
   right:12px;
-  bottom:44px; /* slightly above the input row */
+  bottom:44px;
   font-size:11px;
   color:var(--keelie-muted);
   z-index:10000;
