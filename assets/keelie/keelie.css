@@ -109,7 +109,7 @@
   margin-top:2px;
 }
 
-/* Contact button (optional in JS) */
+/* Contact button */
 .keelie-contact{
   margin-left:auto;
   font-size:12px;
@@ -172,7 +172,7 @@
   background:var(--keelie-surface);
 }
 
-/* User bubble: neutral grey (NOT green) */
+/* User bubble: neutral grey */
 .keelie-msg.you .keelie-bubble{
   background:var(--keelie-surface-2);
   border-color:var(--keelie-border);
@@ -183,7 +183,7 @@
   background:var(--keelie-surface);
 }
 
-/* Inline status bubble (thinking/typing) */
+/* Inline status bubble */
 .keelie-status-bubble{
   font-style:italic;
   font-size:12px;
@@ -195,32 +195,81 @@
 
 /* Bold formatting inside bubbles */
 .keelie-bubble .keelie-bold{
-  font-weight:600; /* softer than 800 */
+  font-weight:600;
 }
 
 /* -----------------------------
    Footer / input row
    ----------------------------- */
-/* -----------------------------
-   Auto-suggest dropdown (does NOT cover input)
-   ----------------------------- */
-
-/* Make footer a positioning context */
-/* =====================================================
-   Auto-suggest dropdown (never covers input)
-   ===================================================== */
-
-/* Footer becomes positioning anchor */
 .keelie-footer{
-  position:relative;
+  position:relative; /* ✅ anchor for autosuggest */
+  padding:10px 12px 12px;
+  border-top:1px solid var(--keelie-border);
+  background:#fff;
 }
 
-/* Dropdown is pinned above the input row */
+.keelie-row{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
+.keelie-input{
+  flex:1;
+  height:38px;
+  border-radius:12px;
+  border:1px solid var(--keelie-border);
+  padding:0 12px;
+  font-size:13px;
+  color:var(--keelie-text);
+  background:#fff;
+}
+.keelie-input::placeholder{
+  color:var(--keelie-muted);
+}
+.keelie-input:focus{
+  outline:none;
+  border-color:rgba(197,22,46,.45);
+  box-shadow:0 0 0 2px rgba(197,22,46,.18);
+}
+
+/* Send button */
+.keelie-send{
+  height:38px;
+  padding:0 12px;
+  border-radius:12px;
+  border:1px solid rgba(197,22,46,.35);
+  background:linear-gradient(180deg,var(--keelie-brand),var(--keelie-brand-dark));
+  color:#fff;
+  font-size:13px;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:0 8px 18px rgba(197,22,46,.18);
+}
+.keelie-send:hover{
+  filter:brightness(.98);
+}
+.keelie-send:focus{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(197,22,46,.22), 0 8px 18px rgba(197,22,46,.16);
+}
+
+/* Privacy note */
+.keelie-privacy{
+  margin-top:8px;
+  font-size:11px;
+  color:var(--keelie-muted);
+  line-height:1.35;
+}
+
+/* -----------------------------
+   Auto-suggest (never covers input)
+   ----------------------------- */
 .keelie-suggest{
   position:absolute;
   left:12px;
   right:12px;
-  bottom:56px; /* input row (~38px) + gap */
+  bottom:56px; /* input row height (~38px) + gap */
   z-index:10000;
 }
 
@@ -260,4 +309,19 @@
   font-size:11px;
   color:var(--keelie-muted);
   z-index:10000;
+}
+
+/* -----------------------------
+   Mobile tweaks
+   ----------------------------- */
+@media (max-width: 420px){
+  .keelie-panel{
+    right:12px;
+    bottom:78px;
+    width:calc(100vw - 24px);
+  }
+  .keelie-launcher{
+    right:12px;
+    bottom:12px;
+  }
 }
