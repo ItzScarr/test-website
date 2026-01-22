@@ -1,149 +1,124 @@
+/* =========================================================
+   Keelie Chat Widget — Keel-like (Red/White/Charcoal)
+   File: assets/keelie/keelie.css
+   ========================================================= */
+
+:root{
+  --keelie-brand:#c5162e;
+  --keelie-brand-dark:#a31226;
+  --keelie-text:#111827;
+  --keelie-muted:#6b7280;
+  --keelie-border:#e5e7eb;
+  --keelie-surface:#ffffff;
+  --keelie-surface-2:#f3f4f6;
+  --keelie-shadow:0 14px 34px rgba(0,0,0,.16);
+  --keelie-shadow-soft:0 8px 18px rgba(0,0,0,.10);
+  --keelie-radius:16px;
+  --keelie-font:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+}
+
+/* -----------------------------
+   Launcher button
+   ----------------------------- */
 .keelie-launcher{
   position:fixed;
   right:18px;
   bottom:18px;
-  z-index:9999;
-
   width:56px;
   height:56px;
   border-radius:999px;
-  border:1px solid rgba(255,255,255,.35);
-  background:linear-gradient(180deg,#1f8a4c,#166a3a);
-  color:#fff;
+  border:none;
+  cursor:pointer;
+  background:linear-gradient(180deg,var(--keelie-brand),var(--keelie-brand-dark));
+  box-shadow:0 12px 26px rgba(197,22,46,.25);
   display:grid;
   place-items:center;
-  cursor:pointer;
-  box-shadow:0 12px 30px rgba(0,0,0,.14);
-  transition:transform .15s ease, filter .15s ease;
+  z-index:9999;
 }
-.keelie-launcher:hover{ transform:translateY(-1px); filter:brightness(1.02); }
-.keelie-launcher:active{ transform:scale(.98); }
+.keelie-launcher:focus{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(197,22,46,.25), 0 12px 26px rgba(197,22,46,.22);
+}
 
+/* -----------------------------
+   Panel container
+   ----------------------------- */
 .keelie-panel{
   position:fixed;
   right:18px;
   bottom:86px;
-  z-index:9999;
-  width:min(380px, calc(100vw - 36px));
-  height:min(560px, calc(100vh - 120px));
-  background:#fff;
-  border:1px solid #e5e7eb;
-  border-radius:18px;
-  box-shadow:0 12px 30px rgba(0,0,0,.14);
+  width:min(360px, calc(100vw - 36px));
+  height:min(520px, calc(100vh - 140px));
+  background:var(--keelie-surface);
+  border:1px solid var(--keelie-border);
+  border-radius:var(--keelie-radius);
+  box-shadow:var(--keelie-shadow);
   overflow:hidden;
-  display:none;
-  flex-direction:column;
-}
-.keelie-panel.is-open{ display:flex; }
+  z-index:9999;
 
+  /* hidden by default */
+  transform:translateY(10px);
+  opacity:0;
+  pointer-events:none;
+  transition:transform .16s ease, opacity .16s ease;
+  font-family:var(--keelie-font);
+}
+
+.keelie-panel.is-open{
+  transform:translateY(0);
+  opacity:1;
+  pointer-events:auto;
+}
+
+/* -----------------------------
+   Header
+   ----------------------------- */
 .keelie-header{
   display:flex;
   align-items:center;
   gap:10px;
-  padding:12px;
-  border-bottom:1px solid #e5e7eb;
-  background:#fff;
+  padding:12px 12px;
+  background:var(--keelie-surface);
+  border-bottom:1px solid var(--keelie-border);
 }
+
 .keelie-badge{
-  width:38px;
-  height:38px;
+  width:34px;
+  height:34px;
   border-radius:12px;
-  background:rgba(31,138,76,.12);
-  color:#166a3a;
   display:grid;
   place-items:center;
   font-weight:900;
-}
-.keelie-title strong{ display:block; font-size:14px; }
-.keelie-title span{ display:block; font-size:12px; color:#6b7280; margin-top:2px; }
-
-.keelie-close{
-  margin-left:auto;
-  width:36px;
-  height:36px;
-  border-radius:12px;
-  border:1px solid #e5e7eb;
-  background:#fff;
-  cursor:pointer;
-  display:grid;
-  place-items:center;
-  font-weight:900;
+  color:var(--keelie-brand-dark);
+  background:rgba(197,22,46,.10);
+  border:1px solid rgba(197,22,46,.20);
 }
 
-.keelie-chat{
-  flex:1;
-  padding:12px;
-  overflow:auto;
-  background:#fafafa;
+.keelie-title{
+  display:flex;
+  flex-direction:column;
+  line-height:1.1;
 }
-.keelie-msg{
-  margin:10px 0;
+.keelie-title strong{
   font-size:13px;
-  line-height:1.35;
+  color:var(--keelie-text);
 }
-.keelie-msg.you{ text-align:right; }
-
-.keelie-bubble{
-  display:inline-block;
-  max-width:92%;
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid #e5e7eb;
-  background:#fff;
-  box-shadow:0 2px 8px rgba(0,0,0,.04);
-  white-space:pre-wrap;
-}
-.keelie-msg.you .keelie-bubble{
-  background:rgba(31,138,76,.10);
-  border-color:rgba(31,138,76,.22);
+.keelie-title span{
+  font-size:11px;
+  color:var(--keelie-muted);
+  margin-top:2px;
 }
 
-.keelie-footer{
-  padding:10px;
-  border-top:1px solid #e5e7eb;
-  background:#fff;
-}
-.keelie-row{ display:flex; gap:8px; }
-.keelie-input{
-  flex:1;
-  padding:11px 12px;
-  border-radius:12px;
-  border:1px solid #e5e7eb;
-  outline:none;
-  font-size:13px;
-}
-.keelie-input:focus{
-  border-color:rgba(31,138,76,.45);
-  box-shadow:0 0 0 4px rgba(31,138,76,.12);
-}
-.keelie-send{
-  padding:11px 12px;
-  border-radius:12px;
-  border:1px solid rgba(31,138,76,.35);
-  background:linear-gradient(180deg,#1f8a4c,#166a3a);
-  color:#fff;
-  font-weight:900;
-  cursor:pointer;
-}
-.keelie-typing{
-  font-size:12px;
-  color:#6b7280;
-  padding:6px 2px 0 2px;
-}
-.keelie-bubble .keelie-bold {
-  font-weight: 600;
-}
-
-/* Contact link in header */
+/* Contact button (optional in JS) */
 .keelie-contact{
   margin-left:auto;
   font-size:12px;
-  font-weight:700;
-  color:#166a3a;
+  font-weight:800;
+  color:var(--keelie-brand-dark);
   text-decoration:none;
   padding:8px 10px;
-  border-radius:10px;
-  border:1px solid #e5e7eb;
+  border-radius:12px;
+  border:1px solid var(--keelie-border);
   background:#fff;
 }
 .keelie-contact:hover{
@@ -151,99 +126,152 @@
   text-decoration:none;
 }
 
-/* Privacy note */
+.keelie-close{
+  margin-left:6px;
+  border:none;
+  background:transparent;
+  font-size:16px;
+  cursor:pointer;
+  color:var(--keelie-text);
+  width:34px;
+  height:34px;
+  border-radius:12px;
+}
+.keelie-close:hover{
+  background:#f3f4f6;
+}
+
+/* -----------------------------
+   Chat area
+   ----------------------------- */
+.keelie-chat{
+  height:calc(100% - 148px);
+  padding:12px;
+  overflow:auto;
+  background:#fafafa;
+}
+
+/* Message rows */
+.keelie-msg{
+  display:flex;
+  margin:8px 0;
+}
+.keelie-msg.bot{ justify-content:flex-start; }
+.keelie-msg.you{ justify-content:flex-end; }
+
+/* Bubble */
+.keelie-bubble{
+  max-width:82%;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid var(--keelie-border);
+  box-shadow:var(--keelie-shadow-soft);
+  font-size:13px;
+  line-height:1.45;
+  color:var(--keelie-text);
+  background:var(--keelie-surface);
+}
+
+/* User bubble: neutral grey (NOT green) */
+.keelie-msg.you .keelie-bubble{
+  background:var(--keelie-surface-2);
+  border-color:var(--keelie-border);
+}
+
+/* Bot bubble stays white */
+.keelie-msg.bot .keelie-bubble{
+  background:var(--keelie-surface);
+}
+
+/* Inline status bubble (thinking/typing) */
+.keelie-status-bubble{
+  font-style:italic;
+  font-size:12px;
+  color:var(--keelie-muted);
+  background:#f9fafb;
+  border-color:var(--keelie-border);
+  box-shadow:none;
+}
+
+/* Bold formatting inside bubbles */
+.keelie-bubble .keelie-bold{
+  font-weight:600; /* softer than 800 */
+}
+
+/* -----------------------------
+   Footer / input row
+   ----------------------------- */
+.keelie-footer{
+  padding:10px 12px 12px;
+  border-top:1px solid var(--keelie-border);
+  background:#fff;
+}
+
+.keelie-row{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
+.keelie-input{
+  flex:1;
+  height:38px;
+  border-radius:12px;
+  border:1px solid var(--keelie-border);
+  padding:0 12px;
+  font-size:13px;
+  color:var(--keelie-text);
+  background:#fff;
+}
+.keelie-input::placeholder{
+  color:var(--keelie-muted);
+}
+.keelie-input:focus{
+  outline:none;
+  border-color:rgba(197,22,46,.45);
+  box-shadow:0 0 0 2px rgba(197,22,46,.18);
+}
+
+/* Send button (red, not green) */
+.keelie-send{
+  height:38px;
+  padding:0 12px;
+  border-radius:12px;
+  border:1px solid rgba(197,22,46,.35);
+  background:linear-gradient(180deg,var(--keelie-brand),var(--keelie-brand-dark));
+  color:#fff;
+  font-size:13px;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:0 8px 18px rgba(197,22,46,.18);
+}
+.keelie-send:hover{
+  filter:brightness(.98);
+}
+.keelie-send:focus{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(197,22,46,.22), 0 8px 18px rgba(197,22,46,.16);
+}
+
+/* Privacy note (if present) */
 .keelie-privacy{
   margin-top:8px;
   font-size:11px;
-  color:#6b7280;
+  color:var(--keelie-muted);
   line-height:1.35;
 }
 
-.keelie-status{
-  font-size:12px;
-  color:#6b7280;
-  padding:6px 2px 0 2px;
-}
-
-/* Inline thinking / typing bubbles */
-.keelie-status-bubble {
-  font-style: italic;
-  font-size: 12px;
-  color: #6b7280;
-  background: #f3f4f6;
-}
-/* Make widget match Keel-like red theme */
-.keelie-launcher{
-  background: linear-gradient(180deg, #c5162e, #a31226) !important;
-  box-shadow: 0 10px 22px rgba(197,22,46,.25) !important;
-}
-
-.keelie-header{
-  background:#fff !important;
-  border-bottom:1px solid #e5e7eb !important;
-}
-
-.keelie-badge{
-  background: rgba(197,22,46,.12) !important;
-  color:#a31226 !important;
-  border: 1px solid rgba(197,22,46,.22) !important;
-}
-
-.keelie-send{
-  background: linear-gradient(180deg, #c5162e, #a31226) !important;
-  color:#fff !important;
-  border:1px solid rgba(197,22,46,.35) !important;
-}
-
-.keelie-bubble .keelie-bold{
-  font-weight:600;
-}
-
-/* ============================= */
-/* REMOVE ALL GREEN ACCENTS */
-/* ============================= */
-
-/* Input focus ring / shadow */
-.keelie-input:focus{
-  outline: none !important;
-  box-shadow: 0 0 0 2px rgba(197,22,46,.25) !important; /* Keel red */
-  border-color: rgba(197,22,46,.45) !important;
-}
-
-/* Send button hover/focus (if green leaked through) */
-.keelie-send:hover,
-.keelie-send:focus{
-  box-shadow: 0 6px 16px rgba(197,22,46,.25) !important;
-}
-
-/* ============================= */
-/* CHAT BUBBLE COLOURS */
-/* ============================= */
-
-/* User message (YOU) — neutral, not green */
-.keelie-msg.you .keelie-bubble{
-  background: #f3f4f6 !important;   /* light grey */
-  color: #111827 !important;
-  border: 1px solid #e5e7eb !important;
-}
-
-/* Bot message (KEELIE) — white */
-.keelie-msg.bot .keelie-bubble{
-  background: #ffffff !important;
-  color: #111827 !important;
-  border: 1px solid #e5e7eb !important;
-}
-
-/* Inline status bubbles (thinking / typing) */
-.keelie-status-bubble{
-  background: #f9fafb !important;
-  color: #6b7280 !important;
-  font-style: italic;
-}
-
-/* ============================= */
-/* REMOVE ANY LEFTOVER GREEN */
-/* ============================= */
-.keelie-bubble{
-  box-shadow: 0 6px 14px rgba(0,0,0,.08) !important;
+/* -----------------------------
+   Mobile tweaks
+   ----------------------------- */
+@media (max-width: 420px){
+  .keelie-panel{
+    right:12px;
+    bottom:78px;
+    width:calc(100vw - 24px);
+  }
+  .keelie-launcher{
+    right:12px;
+    bottom:12px;
+  }
 }
