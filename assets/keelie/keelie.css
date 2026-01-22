@@ -159,11 +159,6 @@
   line-height:1.35;
 }
 
-/* Less-bold bold */
-.keelie-bubble .keelie-bold{
-  font-weight:600; /* adjust to 500–700 if you want */
-}
-
 .keelie-status{
   font-size:12px;
   color:#6b7280;
@@ -177,4 +172,29 @@
   color: #6b7280;
   background: #f3f4f6;
 }
+/* Make widget match Keel-like red theme */
+.keelie-launcher{
+  background: linear-gradient(180deg, #c5162e, #a31226) !important;
+  box-shadow: 0 10px 22px rgba(197,22,46,.25) !important;
+}
 
+.keelie-header{
+  background:#fff !important;
+  border-bottom:1px solid #e5e7eb !important;
+}
+
+.keelie-badge{
+  background: rgba(197,22,46,.12) !important;
+  color:#a31226 !important;
+  border: 1px solid rgba(197,22,46,.22) !important;
+}
+
+.keelie-send{
+  background: linear-gradient(180deg, #c5162e, #a31226) !important;
+  color:#fff !important;
+  border:1px solid rgba(197,22,46,.35) !important;
+}
+
+.keelie-bubble .keelie-bold{
+  font-weight:600;
+}

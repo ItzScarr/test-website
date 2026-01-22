@@ -23,28 +23,45 @@ content="
        ========================= -->
   <style>
     :root{
-      --bg:#f6f6f6;
+      /* Keel-like palette (red + white + charcoal) */
+      --bg:#f5f5f5;
       --surface:#ffffff;
-      --text:#111;
-      --muted:#6b7280;
+      --text:#111827;      /* charcoal */
+      --muted:#6b7280;     /* muted grey */
       --border:#e5e7eb;
 
-      --accent:#1f8a4c;
-      --accent2:#166a3a;
+      --brand:#c5162e;     /* primary red */
+      --brand2:#a31226;    /* darker red for hover */
+      --brand-soft:rgba(197,22,46,.10);
 
-      --shadow:0 12px 30px rgba(0,0,0,.10);
-      --shadow2:0 8px 22px rgba(0,0,0,.08);
+      --shadow:0 10px 24px rgba(0,0,0,.10);
+      --shadow2:0 6px 18px rgba(0,0,0,.08);
 
-      --radius:18px;
+      --radius:14px;
       --max:1180px;
       --pad:clamp(16px,2.5vw,28px);
       --font:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     }
+
     *{ box-sizing:border-box; }
-    body{ margin:0; font-family:var(--font); background:var(--bg); color:var(--text); }
-    a{ color:inherit; text-decoration:none; }
+    body{
+      margin:0;
+      font-family:var(--font);
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    a{ color:var(--brand); text-decoration:none; }
     a:hover{ text-decoration:underline; text-underline-offset:3px; }
-    .container{ width:min(var(--max),100%); margin:0 auto; padding:0 var(--pad); }
+    
+    .topbar{
+      background:var(--brand);
+      color:#fff;
+      font-size:12px;
+      padding:8px 0;
+    }
+    .topbar a{ color:#fff; text-decoration:underline; text-underline-offset:2px; }
+
 
     header{
       background:#fff;
@@ -53,6 +70,7 @@ content="
       top:0;
       z-index:10;
     }
+
     .header-inner{
       display:flex;
       align-items:center;
@@ -66,16 +84,17 @@ content="
       min-width:240px;
     }
     .logo{
-      width:40px;
-      height:40px;
-      border-radius:12px;
-      background:rgba(31,138,76,.12);
-      display:grid;
-      place-items:center;
-      font-weight:900;
-      color:var(--accent2);
-      letter-spacing:.4px;
-    }
+    width:40px;
+    height:40px;
+    border-radius:12px;
+    background:var(--brand-soft);
+    display:grid;
+    place-items:center;
+    font-weight:900;
+    color:var(--brand2);
+    letter-spacing:.4px;
+    border:1px solid rgba(197,22,46,.25);
+  }
     .brand-title{ line-height:1.1; }
     .brand-title strong{ display:block; font-size:14px; letter-spacing:.2px; }
     .brand-title span{ display:block; font-size:12px; color:var(--muted); margin-top:2px; }
@@ -96,17 +115,17 @@ content="
     .navlink:hover{ background:#fafafa; text-decoration:none; }
 
     .cta{
-      font-size:13px;
-      font-weight:800;
-      color:#fff;
-      background:linear-gradient(180deg,var(--accent),var(--accent2));
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid rgba(31,138,76,.35);
-      box-shadow:0 8px 20px rgba(31,138,76,.18);
-      text-decoration:none !important;
-      margin-left:6px;
-    }
+    font-size:13px;
+    font-weight:800;
+    color:#fff;
+    background:linear-gradient(180deg,var(--brand),var(--brand2));
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(197,22,46,.35);
+    box-shadow:0 8px 18px rgba(197,22,46,.18);
+    text-decoration:none !important;
+    margin-left:6px;
+  }
 
     .hero{ padding:28px 0 16px; }
     .hero-grid{
@@ -138,17 +157,17 @@ content="
       pointer-events:none;
     }
     .kicker{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      font-size:12px;
-      font-weight:800;
-      color:var(--accent2);
-      background:rgba(31,138,76,.10);
-      border:1px solid rgba(31,138,76,.20);
-      padding:7px 10px;
-      border-radius:999px;
-    }
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+    font-weight:800;
+    color:var(--brand2);
+    background:var(--brand-soft);
+    border:1px solid rgba(197,22,46,.20);
+    padding:7px 10px;
+    border-radius:999px;
+  }
     h1{
       margin:14px 0 10px;
       font-size:clamp(26px,3vw,40px);
@@ -181,8 +200,8 @@ content="
       text-decoration:none !important;
     }
     .btn.primary{
-      border-color:rgba(31,138,76,.35);
-      background:linear-gradient(180deg,var(--accent),var(--accent2));
+      border-color:rgba(197,22,46,.35);
+      background:linear-gradient(180deg,var(--brand),var(--brand2));
       color:#fff;
     }
 
@@ -349,10 +368,16 @@ content="
   </script>
 
   <!-- Keelie widget JS -->
-  <script type="module" src="assets/keelie/keelie.js?v=8"></script>
+  <script type="module" src="assets/keelie/keelie.js?v=9"></script>
 </head>
 
 <body>
+  <div class="topbar">
+  <div class="container">
+    Come and see us at one of our upcoming trade shows — <a href="#">Click here</a>
+  </div>
+</div>
+
   <header>
     <div class="container">
       <div class="header-inner">
