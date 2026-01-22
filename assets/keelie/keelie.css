@@ -318,6 +318,37 @@
 .keelie-panel.is-suggesting .keelie-suggest-list{
   box-shadow:none;
 }
+/* =====================================================
+   Polishing: suggestions feel like part of the input
+   ===================================================== */
+
+.keelie-suggest-list{
+  border-radius:12px;
+  border:1px solid var(--keelie-border);
+  background:#fff;
+}
+
+/* Slightly reduce contrast of separators for a softer look */
+.keelie-suggest-item + .keelie-suggest-item{
+  border-top:1px solid rgba(229, 231, 235, 0.7);
+}
+
+/* Softer hover and active states */
+.keelie-suggest-item:hover,
+.keelie-suggest-item.is-active{
+  background:rgba(17, 24, 39, 0.04); /* subtle grey wash */
+}
+
+/* Give list a tiny lift, but not “boxy” */
+.keelie-panel.is-suggesting .keelie-suggest-list{
+  box-shadow:0 8px 18px rgba(0,0,0,.08);
+}
+
+/* Tighten spacing between list and input */
+.keelie-footer{
+  gap:8px;
+}
+
 
 /* ==============================
    Mobile tweaks
