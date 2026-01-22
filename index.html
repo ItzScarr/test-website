@@ -5,12 +5,18 @@
   <title>Keel Toys – Trade Soft Toys</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Trade soft toy collections, new products, and Keeleco recycled ranges." />
-  <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self' https://pyscript.net https://cdn.jsdelivr.net;
-               script-src 'self' 'unsafe-inline' https://pyscript.net https://cdn.jsdelivr.net;
-               style-src 'self' 'unsafe-inline' https://pyscript.net;
-               img-src 'self' data:;
-               connect-src 'self' https://pyscript.net https://cdn.jsdelivr.net;">
+<meta http-equiv="Content-Security-Policy"
+content="
+  default-src 'self' https://pyscript.net https://cdn.jsdelivr.net;
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pyscript.net https://cdn.jsdelivr.net;
+  style-src 'self' 'unsafe-inline' https://pyscript.net;
+  img-src 'self' data:;
+  connect-src 'self' https://pyscript.net https://cdn.jsdelivr.net https://files.pythonhosted.org;
+  worker-src 'self' blob:;
+  object-src 'none';
+  base-uri 'self';
+">
+
 
   <!-- =========================
        Site styling (clean, Keel-like)
