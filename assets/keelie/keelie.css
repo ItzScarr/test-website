@@ -369,57 +369,60 @@
    ===================================================== */
 
 /* Make the footer a fixed-height area */
+/* =====================================================
+   Stable footer (compact, no jumping)
+   ===================================================== */
+
 .keelie-footer{
   position:relative;
-  height:156px;              /* tweak if you want more/less suggestion area */
-  padding:10px 12px 12px;
+  height:112px;             /* ↓ reduced from 156px */
+  padding:10px 12px;
   box-sizing:border-box;
-  display:block;             /* override flex if you set it earlier */
 }
 
-/* Suggestions occupy a reserved slot at the TOP of the footer */
+/* Reserved slot for suggestions (compact) */
 .keelie-suggest{
   position:absolute;
   left:12px;
   right:12px;
   top:10px;
-  height:96px;               /* reserved height for suggestions */
-  display:none;              /* JS toggles */
+  height:56px;              /* ↓ reduced from 96px */
+  display:none;
 }
 
-/* Suggestion list fills the reserved slot */
 .keelie-suggest-list{
   height:100%;
   overflow:auto;
   background:#fff;
   border:1px solid var(--keelie-border);
   border-radius:12px;
-  box-shadow:0 10px 24px rgba(0,0,0,.10);
+  box-shadow:0 8px 18px rgba(0,0,0,.10);
 }
 
-/* Input row is pinned to the bottom of the footer */
+/* Input row pinned to bottom (never moves) */
 .keelie-row{
   position:absolute;
   left:12px;
   right:12px;
-  bottom:12px;
+  bottom:10px;
   display:flex;
   gap:8px;
   align-items:center;
 }
 
-/* Hide privacy + status while suggesting to keep space stable */
+/* Hide footer clutter when suggesting */
 .keelie-panel.is-suggesting .keelie-privacy,
 .keelie-panel.is-suggesting .keelie-status{
   display:none !important;
 }
 
-/* Chat stays visible but dimmed */
+/* Chat stays visible but muted */
 .keelie-panel.is-suggesting .keelie-chat{
   opacity:0.22;
   filter:blur(0.6px);
   pointer-events:none;
 }
+
 
 
 /* ==============================
