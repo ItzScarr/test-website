@@ -1,5 +1,5 @@
 /* =========================================================
-   Keelie Chat Widget — Keel-like (Red/White/Charcoal)
+   Keelie Chat Widget — Full Stylesheet
    File: assets/keelie/keelie.css
    ========================================================= */
 
@@ -17,9 +17,9 @@
   --keelie-font:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 }
 
-/* -----------------------------
-   Launcher button
-   ----------------------------- */
+/* ==============================
+   Launcher
+   ============================== */
 .keelie-launcher{
   position:fixed;
   right:18px;
@@ -35,50 +35,44 @@
   place-items:center;
   z-index:9999;
 }
-.keelie-launcher:focus{
-  outline:none;
-  box-shadow:0 0 0 3px rgba(197,22,46,.25), 0 12px 26px rgba(197,22,46,.22);
-}
 
-/* -----------------------------
-   Panel container
-   ----------------------------- */
+/* ==============================
+   Panel
+   ============================== */
 .keelie-panel{
   position:fixed;
   right:18px;
   bottom:86px;
   width:min(360px, calc(100vw - 36px));
   height:min(520px, calc(100vh - 140px));
-  background:var(--keelie-surface);
+  background:#fff;
   border:1px solid var(--keelie-border);
   border-radius:var(--keelie-radius);
   box-shadow:var(--keelie-shadow);
   overflow:hidden;
   z-index:9999;
 
-  /* hidden by default */
-  transform:translateY(10px);
   opacity:0;
+  transform:translateY(10px);
   pointer-events:none;
-  transition:transform .16s ease, opacity .16s ease;
+  transition:.18s ease;
   font-family:var(--keelie-font);
 }
 
 .keelie-panel.is-open{
-  transform:translateY(0);
   opacity:1;
+  transform:none;
   pointer-events:auto;
 }
 
-/* -----------------------------
+/* ==============================
    Header
-   ----------------------------- */
+   ============================== */
 .keelie-header{
   display:flex;
   align-items:center;
   gap:10px;
-  padding:12px 12px;
-  background:var(--keelie-surface);
+  padding:12px;
   border-bottom:1px solid var(--keelie-border);
 }
 
@@ -89,27 +83,22 @@
   display:grid;
   place-items:center;
   font-weight:900;
+  background:rgba(197,22,46,.1);
   color:var(--keelie-brand-dark);
-  background:rgba(197,22,46,.10);
-  border:1px solid rgba(197,22,46,.20);
 }
 
 .keelie-title{
   display:flex;
   flex-direction:column;
-  line-height:1.1;
 }
 .keelie-title strong{
   font-size:13px;
-  color:var(--keelie-text);
 }
 .keelie-title span{
   font-size:11px;
   color:var(--keelie-muted);
-  margin-top:2px;
 }
 
-/* Contact button */
 .keelie-contact{
   margin-left:auto;
   font-size:12px;
@@ -119,39 +108,34 @@
   padding:8px 10px;
   border-radius:12px;
   border:1px solid var(--keelie-border);
-  background:#fff;
 }
-.keelie-contact:hover{
-  background:#fafafa;
-  text-decoration:none;
-}
-
 .keelie-close{
-  margin-left:6px;
   border:none;
   background:transparent;
   font-size:16px;
   cursor:pointer;
-  color:var(--keelie-text);
-  width:34px;
-  height:34px;
-  border-radius:12px;
-}
-.keelie-close:hover{
-  background:#f3f4f6;
 }
 
-/* -----------------------------
+/* ==============================
    Chat area
-   ----------------------------- */
+   ============================== */
 .keelie-chat{
-  height:calc(100% - 148px);
+  height:calc(100% - 150px);
   padding:12px;
   overflow:auto;
   background:#fafafa;
+  transition:.15s ease;
 }
 
-/* Message rows */
+/* When suggesting, de-emphasise chat */
+.keelie-panel.is-suggesting .keelie-chat{
+  opacity:.2;
+  pointer-events:none;
+}
+
+/* ==============================
+   Messages
+   ============================== */
 .keelie-msg{
   display:flex;
   margin:8px 0;
@@ -159,67 +143,41 @@
 .keelie-msg.bot{ justify-content:flex-start; }
 .keelie-msg.you{ justify-content:flex-end; }
 
-/* Bubble */
 .keelie-bubble{
   max-width:82%;
   padding:10px 12px;
   border-radius:14px;
   border:1px solid var(--keelie-border);
-  box-shadow:var(--keelie-shadow-soft);
+  background:#fff;
   font-size:13px;
   line-height:1.45;
-  color:var(--keelie-text);
-  background:var(--keelie-surface);
+  box-shadow:var(--keelie-shadow-soft);
 }
 
-/* User bubble: neutral grey */
 .keelie-msg.you .keelie-bubble{
   background:var(--keelie-surface-2);
-  border-color:var(--keelie-border);
 }
 
-/* Bot bubble stays white */
-.keelie-msg.bot .keelie-bubble{
-  background:var(--keelie-surface);
-}
-
-/* Inline status bubble */
-.keelie-status-bubble{
-  font-style:italic;
-  font-size:12px;
-  color:var(--keelie-muted);
-  background:#f9fafb;
-  border-color:var(--keelie-border);
-  box-shadow:none;
-}
-
-/* Bold formatting inside bubbles */
+/* Bold formatting */
 .keelie-bubble .keelie-bold{
   font-weight:600;
 }
 
-/* -----------------------------
-   Footer / input row
-   ----------------------------- */
-/* =====================================================
-   Autosuggest (NON-overlapping, in-flow)
-   ===================================================== */
-
-/* Footer becomes a column */
+/* ==============================
+   Footer (INPUT + AUTOSUGGEST)
+   ============================== */
 .keelie-footer{
   display:flex;
   flex-direction:column;
   gap:8px;
+  padding:10px 12px 12px;
+  border-top:1px solid var(--keelie-border);
+  background:#fff;
 }
 
-/* Suggestions sit ABOVE the input row, in the footer flow */
+/* ---------- Autosuggest (IN FLOW, NO OVERLAP) ---------- */
 .keelie-suggest{
-  display:none;              /* JS toggles to block */
-  order:0;                   /* ensure it stays above the row */
-}
-
-.keelie-row{
-  order:1;                   /* input row below suggestions */
+  display:none;
 }
 
 .keelie-suggest-list{
@@ -233,14 +191,13 @@
 
 .keelie-suggest-item{
   width:100%;
-  text-align:left;
-  background:#fff;
-  border:none;
   padding:10px 12px;
+  border:none;
+  background:#fff;
+  text-align:left;
+  cursor:pointer;
   font-size:13px;
   color:var(--keelie-text);
-  cursor:pointer;
-  line-height:1.25;
 }
 
 .keelie-suggest-item + .keelie-suggest-item{
@@ -257,27 +214,60 @@
   display:none !important;
 }
 
-/* When suggesting: hide clutter and calm the chat */
-.keelie-panel.is-suggesting .keelie-chat{
-  opacity:.15;
-  filter:blur(1px);
-  pointer-events:none;
+/* ---------- Input row ---------- */
+.keelie-row{
+  display:flex;
+  gap:8px;
+  align-items:center;
 }
 
+.keelie-input{
+  flex:1;
+  height:38px;
+  padding:0 12px;
+  border-radius:12px;
+  border:1px solid var(--keelie-border);
+  font-size:13px;
+}
+.keelie-input:focus{
+  outline:none;
+  border-color:rgba(197,22,46,.4);
+  box-shadow:0 0 0 2px rgba(197,22,46,.18);
+}
+
+.keelie-send{
+  height:38px;
+  padding:0 12px;
+  border-radius:12px;
+  border:1px solid rgba(197,22,46,.35);
+  background:linear-gradient(180deg,var(--keelie-brand),var(--keelie-brand-dark));
+  color:#fff;
+  font-weight:800;
+  cursor:pointer;
+}
+
+/* ==============================
+   Footer clutter hidden in suggest mode
+   ============================== */
 .keelie-panel.is-suggesting .keelie-privacy,
 .keelie-panel.is-suggesting .keelie-status{
   display:none !important;
 }
 
+/* ==============================
+   Privacy note
+   ============================== */
+.keelie-privacy{
+  font-size:11px;
+  color:var(--keelie-muted);
+}
 
-
-/* -----------------------------
+/* ==============================
    Mobile tweaks
-   ----------------------------- */
-@media (max-width: 420px){
+   ============================== */
+@media (max-width:420px){
   .keelie-panel{
     right:12px;
-    bottom:78px;
     width:calc(100vw - 24px);
   }
   .keelie-launcher{
