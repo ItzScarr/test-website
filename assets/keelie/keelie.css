@@ -1,6 +1,9 @@
 /* =========================================================
-   Keelie Chat Widget — Full Stylesheet (Professional Autosuggest)
+   Keelie Chat Widget — Simplified Full Stylesheet
    File: assets/keelie/keelie.css
+   Notes:
+   - Autosuggest OVERLAYS the chat (never covers input)
+   - Footer/input never moves
    ========================================================= */
 
 :root{
@@ -35,10 +38,6 @@
   place-items:center;
   z-index:9999;
 }
-.keelie-launcher:focus{
-  outline:none;
-  box-shadow:0 0 0 3px rgba(197,22,46,.25), 0 12px 26px rgba(197,22,46,.22);
-}
 
 /* ==============================
    Panel
@@ -47,8 +46,8 @@
   position:fixed;
   right:18px;
   bottom:86px;
-  width:min(360px, calc(100vw - 36px));
-  height:min(520px, calc(100vh - 140px));
+  width:min(420px, calc(100vw - 36px));    /* bigger */
+  height:min(620px, calc(100vh - 120px));  /* bigger */
   background:var(--keelie-surface);
   border:1px solid var(--keelie-border);
   border-radius:var(--keelie-radius);
@@ -62,10 +61,9 @@
   transition:transform .16s ease, opacity .16s ease;
   font-family:var(--keelie-font);
 }
-
 .keelie-panel.is-open{
   opacity:1;
-  transform:translateY(0);
+  transform:none;
   pointer-events:auto;
 }
 
@@ -77,10 +75,9 @@
   align-items:center;
   gap:10px;
   padding:12px;
-  background:var(--keelie-surface);
   border-bottom:1px solid var(--keelie-border);
+  background:#fff;
 }
-
 .keelie-badge{
   width:34px;
   height:34px;
@@ -88,25 +85,17 @@
   display:grid;
   place-items:center;
   font-weight:900;
-  color:var(--keelie-brand-dark);
   background:rgba(197,22,46,.10);
+  color:var(--keelie-brand-dark);
   border:1px solid rgba(197,22,46,.20);
 }
-
 .keelie-title{
   display:flex;
   flex-direction:column;
   line-height:1.1;
 }
-.keelie-title strong{
-  font-size:13px;
-  color:var(--keelie-text);
-}
-.keelie-title span{
-  font-size:11px;
-  color:var(--keelie-muted);
-  margin-top:2px;
-}
+.keelie-title strong{ font-size:13px; color:var(--keelie-text); }
+.keelie-title span{ font-size:11px; color:var(--keelie-muted); margin-top:2px; }
 
 .keelie-contact{
   margin-left:auto;
@@ -119,10 +108,7 @@
   border:1px solid var(--keelie-border);
   background:#fff;
 }
-.keelie-contact:hover{
-  background:#fafafa;
-  text-decoration:none;
-}
+.keelie-contact:hover{ background:#fafafa; }
 
 .keelie-close{
   margin-left:6px;
@@ -135,15 +121,13 @@
   height:34px;
   border-radius:12px;
 }
-.keelie-close:hover{
-  background:#f3f4f6;
-}
+.keelie-close:hover{ background:#f3f4f6; }
 
 /* ==============================
    Chat area
    ============================== */
 .keelie-chat{
-  height:calc(100% - 150px);
+  height:calc(100% - 148px); /* header + footer */
   padding:12px;
   overflow:auto;
   background:#fafafa;
@@ -152,10 +136,7 @@
 /* ==============================
    Messages
    ============================== */
-.keelie-msg{
-  display:flex;
-  margin:8px 0;
-}
+.keelie-msg{ display:flex; margin:8px 0; }
 .keelie-msg.bot{ justify-content:flex-start; }
 .keelie-msg.you{ justify-content:flex-end; }
 
@@ -165,15 +146,12 @@
   border-radius:14px;
   border:1px solid var(--keelie-border);
   background:#fff;
+  box-shadow:var(--keelie-shadow-soft);
   font-size:13px;
   line-height:1.45;
-  box-shadow:var(--keelie-shadow-soft);
   color:var(--keelie-text);
 }
-
-.keelie-msg.you .keelie-bubble{
-  background:var(--keelie-surface-2);
-}
+.keelie-msg.you .keelie-bubble{ background:var(--keelie-surface-2); }
 
 .keelie-status-bubble{
   font-style:italic;
@@ -184,17 +162,13 @@
   box-shadow:none;
 }
 
-.keelie-bubble .keelie-bold{
-  font-weight:600;
-}
+.keelie-bubble .keelie-bold{ font-weight:600; }
 
 /* ==============================
-   Footer / Input
+   Footer (stable input)
    ============================== */
 .keelie-footer{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
+  position:relative;
   padding:10px 12px 12px;
   border-top:1px solid var(--keelie-border);
   background:#fff;
@@ -216,9 +190,7 @@
   color:var(--keelie-text);
   background:#fff;
 }
-.keelie-input::placeholder{
-  color:var(--keelie-muted);
-}
+.keelie-input::placeholder{ color:var(--keelie-muted); }
 .keelie-input:focus{
   outline:none;
   border-color:rgba(197,22,46,.45);
@@ -237,189 +209,77 @@
   cursor:pointer;
   box-shadow:0 8px 18px rgba(197,22,46,.18);
 }
-.keelie-send:hover{
-  filter:brightness(.98);
-}
-.keelie-send:focus{
-  outline:none;
-  box-shadow:0 0 0 3px rgba(197,22,46,.22), 0 8px 18px rgba(197,22,46,.16);
-}
 
+.keelie-status{
+  margin-top:6px;
+  font-size:12px;
+  color:var(--keelie-muted);
+}
 .keelie-privacy{
-  margin-top:2px;
+  margin-top:6px;
   font-size:11px;
   color:var(--keelie-muted);
-  line-height:1.35;
 }
 
-/* ==============================
-   Autosuggest (base: in-flow, above input)
-   ============================== */
+/* =====================================================
+   Autosuggest OVERLAY (overlaps chat, never input)
+   - Suggestions are absolutely positioned inside footer,
+     anchored above the input row.
+   ===================================================== */
 .keelie-suggest{
-  display:none; /* JS toggles to block */
+  position:absolute;
+  left:12px;
+  right:12px;
+  bottom:64px;        /* sits above input row */
+  z-index:10000;
+  display:none;       /* JS toggles */
 }
 
 .keelie-suggest-list{
+  max-height:220px;
+  overflow:auto;
   background:#fff;
   border:1px solid var(--keelie-border);
   border-radius:12px;
-  overflow:auto;
-  max-height:200px;
+  box-shadow:0 12px 28px rgba(0,0,0,.14);
 }
 
 .keelie-suggest-item{
   width:100%;
-  text-align:left;
-  background:#fff;
-  border:none;
-  padding:10px 14px;
-  font-size:13px;
-  line-height:1.35;
-  color:var(--keelie-text);
-  cursor:pointer;
   display:block;
-}
-
-.keelie-suggest-item + .keelie-suggest-item{
-  border-top:1px solid var(--keelie-border);
-}
-
-.keelie-suggest-item:hover,
-.keelie-suggest-item.is-active{
-  background:#f6f7f8;
-}
-
-/* Hide hint (we don’t want extra clutter) */
-.keelie-suggest-hint{
-  display:none !important;
-}
-
-/* ==============================
-   PROFESSIONAL AUTOSUGGEST MODE
-   - When suggestions are open:
-     * hide transcript completely
-     * keep only suggestions + input visible
-     * hide footer clutter (privacy/status)
-   ============================== */
-.keelie-panel.is-suggesting .keelie-chat{
-  display:none;
-}
-
-.keelie-panel.is-suggesting .keelie-privacy,
-.keelie-panel.is-suggesting .keelie-status{
-  display:none !important;
-}
-
-.keelie-panel.is-suggesting .keelie-footer{
-  padding-top:14px;
-}
-
-/* Make suggestions feel like part of the input surface */
-.keelie-panel.is-suggesting .keelie-suggest-list{
-  box-shadow:none;
-}
-/* =====================================================
-   Polishing: suggestions feel like part of the input
-   ===================================================== */
-
-.keelie-suggest-list{
-  border-radius:12px;
-  border:1px solid var(--keelie-border);
+  padding:10px 14px;
+  border:none;
   background:#fff;
+  text-align:left;
+  cursor:pointer;
+  font-size:13px;
+  line-height:1.3;
+  color:var(--keelie-text);
 }
 
-/* Slightly reduce contrast of separators for a softer look */
 .keelie-suggest-item + .keelie-suggest-item{
-  border-top:1px solid rgba(229, 231, 235, 0.7);
+  border-top:1px solid rgba(229,231,235,.7);
 }
 
-/* Softer hover and active states */
 .keelie-suggest-item:hover,
 .keelie-suggest-item.is-active{
-  background:rgba(17, 24, 39, 0.04); /* subtle grey wash */
+  background:rgba(17,24,39,.04);
 }
 
-/* Keep chat visible when suggesting (dim, don't hide) */
+/* Hide hint entirely (clutter) */
+.keelie-suggest-hint{ display:none !important; }
+
+/* When suggesting: keep chat visible but subdued */
 .keelie-panel.is-suggesting .keelie-chat{
-  display:block;            /* ensure it stays visible */
-  opacity:0.22;
+  opacity:0.25;
   filter:blur(0.6px);
-  pointer-events:none;      /* prevents scrolling/clicking while choosing */
 }
 
-/* Keep suggestions + input crisp */
-.keelie-panel.is-suggesting .keelie-footer{
-  position:relative;
-  z-index:2;
-}
-
-.keelie-panel.is-suggesting .keelie-suggest-list{
-  box-shadow:0 10px 24px rgba(0,0,0,.10);
-}
-
-
-/* Tighten spacing between list and input */
-.keelie-footer{
-  gap:8px;
-}
-
-
-/* Fixed footer height: enough for 3 suggestions + input row */
-.keelie-footer{
-  height:136px;         /* was ~112px; this gives room for 3 suggestions */
-  padding:10px 12px;
-  box-sizing:border-box;
-}
-
-/* Reserved slot for suggestions */
-.keelie-suggest{
-  position:absolute;
-  left:12px;
-  right:12px;
-  top:10px;
-  height:100px;          /* ~3 rows @ ~26px each + separators */
-  display:none;
-}
-
-/* Make the list fill the slot */
-.keelie-suggest-list{
-  height:100%;
-  overflow:auto;
-  border-radius:12px;
-}
-
-/* Slightly tighter rows so 3 items fit nicely */
-.keelie-suggest-item{
-  padding:8px 12px;     /* was 10px 14px */
-  font-size:13px;
-  line-height:1.25;
-}
-
-/* Input stays pinned */
-.keelie-row{
-  position:absolute;
-  left:12px;
-  right:12px;
-  bottom:10px;
-  display:flex;
-  gap:8px;
-  align-items:center;
-}
-
-/* Hide footer clutter when suggesting */
+/* Optional: hide footer clutter during suggest */
 .keelie-panel.is-suggesting .keelie-privacy,
 .keelie-panel.is-suggesting .keelie-status{
   display:none !important;
 }
-
-/* Chat stays visible but muted */
-.keelie-panel.is-suggesting .keelie-chat{
-  opacity:0.22;
-  filter:blur(0.6px);
-  pointer-events:none;
-}
-
-
 
 /* ==============================
    Mobile tweaks
@@ -427,159 +287,15 @@
 @media (max-width:420px){
   .keelie-panel{
     right:12px;
-    bottom:84px;
+    bottom:78px;
     width:calc(100vw - 24px);
+    height:calc(100vh - 110px);
   }
   .keelie-launcher{
     right:12px;
     bottom:12px;
   }
-}
-/* =====================================================
-   Make the chatbot panel bigger (more breathing room)
-   ===================================================== */
-
-/* Desktop & large screens */
-.keelie-panel{
-  width:min(420px, calc(100vw - 36px));   /* was ~360px */
-  height:min(620px, calc(100vh - 120px)); /* was ~520px */
-}
-
-/* Give the chat area more space */
-.keelie-chat{
-  height:calc(100% - 168px); /* accounts for header + fixed footer */
-}
-/* Mobile: still roomy, but not overwhelming */
-@media (max-width: 420px){
-  .keelie-panel{
-    width:calc(100vw - 24px);
-    height:calc(100vh - 110px);
+  .keelie-suggest{
+    bottom:62px;
   }
-
-  .keelie-chat{
-    height:calc(100% - 160px);
-  }
-}
-/* =====================================================
-   HARD FIX: input row never moves (pinned)
-   ===================================================== */
-
-/* Footer is a fixed container */
-.keelie-footer{
-  position:relative !important;
-  height:140px !important;      /* enough for 3 suggestions + input */
-  padding:10px 12px !important;
-  box-sizing:border-box !important;
-}
-
-/* Suggestions are a fixed slot at top of footer (do NOT push layout) */
-.keelie-suggest{
-  position:absolute !important;
-  left:12px !important;
-  right:12px !important;
-  top:10px !important;
-  height:78px !important;       /* shows ~3 suggestions */
-  display:none;                  /* JS toggles to block */
-}
-
-/* Suggest list fills the slot */
-.keelie-suggest-list{
-  height:100% !important;
-  overflow:auto !important;
-}
-
-/* ✅ Input row pinned to bottom (never pushed) */
-.keelie-row{
-  position:absolute !important;
-  left:12px !important;
-  right:12px !important;
-  bottom:10px !important;
-  display:flex !important;
-  gap:8px !important;
-  align-items:center !important;
-}
-
-/* Hide clutter during suggest mode (optional) */
-.keelie-panel.is-suggesting .keelie-privacy,
-.keelie-panel.is-suggesting .keelie-status{
-  display:none !important;
-}
-/* =====================================================
-   Overlay autosuggest (overlaps chat, never covers input)
-   ===================================================== */
-
-/* Keep footer stable */
-.keelie-footer{
-  position:relative !important;
-  padding:10px 12px 12px !important;
-  box-sizing:border-box !important;
-}
-
-/* Keep input row in normal flow (or pinned — either works)
-   If you pinned it earlier, you can keep it. */
-.keelie-row{
-  display:flex !important;
-  gap:8px !important;
-  align-items:center !important;
-}
-
-/* ✅ Suggestions float ABOVE the footer and overlap the chat */
-.keelie-suggest{
-  position:absolute !important;
-  left:12px !important;
-  right:12px !important;
-
-  /* This anchors the dropdown just above the input/footer area */
-  bottom:64px !important;     /* tweak if needed */
-  display:none;
-  z-index:10000 !important;
-}
-
-/* The list itself */
-.keelie-suggest-list{
-  max-height:220px !important;
-  overflow:auto !important;
-  background:#fff !important;
-  border:1px solid var(--keelie-border) !important;
-  border-radius:12px !important;
-  box-shadow:0 12px 28px rgba(0,0,0,.14) !important;
-}
-
-/* Make each suggestion row clean */
-.keelie-suggest-item{
-  width:100% !important;
-  display:block !important;
-  padding:10px 14px !important;
-  border:none !important;
-  background:#fff !important;
-  text-align:left !important;
-  cursor:pointer !important;
-  font-size:13px !important;
-  line-height:1.3 !important;
-}
-
-.keelie-suggest-item + .keelie-suggest-item{
-  border-top:1px solid rgba(229,231,235,.7) !important;
-}
-
-.keelie-suggest-item:hover,
-.keelie-suggest-item.is-active{
-  background:rgba(17,24,39,.04) !important;
-}
-
-/* Optional: keep chat visible but slightly muted while suggestions are open */
-.keelie-panel.is-suggesting .keelie-chat{
-  opacity:0.25;
-  filter:blur(0.6px);
-}
-
-/* Remove clutter while suggesting */
-.keelie-panel.is-suggesting .keelie-privacy,
-.keelie-panel.is-suggesting .keelie-status{
-  display:none !important;
-}
-
-/* Hide hint permanently if you still have it */
-.keelie-suggest-hint{
-  display:none !important;
 }
