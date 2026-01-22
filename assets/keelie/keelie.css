@@ -201,76 +201,25 @@
 /* -----------------------------
    Footer / input row
    ----------------------------- */
+/* =====================================================
+   Autosuggest (NON-overlapping, in-flow)
+   ===================================================== */
+
+/* Footer becomes a column */
 .keelie-footer{
-  position:relative; /* ✅ anchor for autosuggest */
-  padding:10px 12px 12px;
-  border-top:1px solid var(--keelie-border);
-  background:#fff;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+/* Suggestions sit ABOVE the input row, in the footer flow */
+.keelie-suggest{
+  display:none;              /* JS toggles to block */
+  order:0;                   /* ensure it stays above the row */
 }
 
 .keelie-row{
-  display:flex;
-  gap:8px;
-  align-items:center;
-}
-
-.keelie-input{
-  flex:1;
-  height:38px;
-  border-radius:12px;
-  border:1px solid var(--keelie-border);
-  padding:0 12px;
-  font-size:13px;
-  color:var(--keelie-text);
-  background:#fff;
-}
-.keelie-input::placeholder{
-  color:var(--keelie-muted);
-}
-.keelie-input:focus{
-  outline:none;
-  border-color:rgba(197,22,46,.45);
-  box-shadow:0 0 0 2px rgba(197,22,46,.18);
-}
-
-/* Send button */
-.keelie-send{
-  height:38px;
-  padding:0 12px;
-  border-radius:12px;
-  border:1px solid rgba(197,22,46,.35);
-  background:linear-gradient(180deg,var(--keelie-brand),var(--keelie-brand-dark));
-  color:#fff;
-  font-size:13px;
-  font-weight:900;
-  cursor:pointer;
-  box-shadow:0 8px 18px rgba(197,22,46,.18);
-}
-.keelie-send:hover{
-  filter:brightness(.98);
-}
-.keelie-send:focus{
-  outline:none;
-  box-shadow:0 0 0 3px rgba(197,22,46,.22), 0 8px 18px rgba(197,22,46,.16);
-}
-
-/* Privacy note */
-.keelie-privacy{
-  margin-top:8px;
-  font-size:11px;
-  color:var(--keelie-muted);
-  line-height:1.35;
-}
-
-/* -----------------------------
-   Auto-suggest (never covers input)
-   ----------------------------- */
-.keelie-suggest{
-  position:absolute;
-  left:12px;
-  right:12px;
-  bottom:56px; /* input row height (~38px) + gap */
-  z-index:10000;
+  order:1;                   /* input row below suggestions */
 }
 
 .keelie-suggest-list{
@@ -278,60 +227,8 @@
   border:1px solid var(--keelie-border);
   border-radius:14px;
   box-shadow:var(--keelie-shadow-soft);
-  overflow:hidden;
-  max-height:220px;
-}
-
-.keelie-suggest-item{
-  width:100%;
-  text-align:left;
-  background:#fff;
-  border:none;
-  padding:10px 12px;
-  font-size:13px;
-  color:var(--keelie-text);
-  cursor:pointer;
-}
-
-.keelie-suggest-item:hover{
-  background:#f9fafb;
-}
-
-.keelie-suggest-item.is-active{
-  background:#f3f4f6;
-}
-
-.keelie-suggest-hint{
-  position:absolute;
-  left:12px;
-  right:12px;
-  bottom:44px;
-  font-size:11px;
-  color:var(--keelie-muted);
-  z-index:10000;
-}
-
-/* =====================================================
-   Clean autosuggest mode
-   When suggestions open: only input + list feels visible
-   ===================================================== */
-
-/* Dropdown: tighter, cleaner */
-.keelie-suggest{
-  position:absolute;
-  left:12px;
-  right:12px;
-  bottom:54px;              /* stays above the input */
-  z-index:10000;
-}
-
-.keelie-suggest-list{
-  background:#fff;
-  border:1px solid var(--keelie-border);
-  border-radius:14px;
-  box-shadow:var(--keelie-shadow-soft);
+  max-height:160px;
   overflow:auto;
-  max-height:160px;         /* keeps it compact */
 }
 
 .keelie-suggest-item{
@@ -355,12 +252,12 @@
   background:#f3f4f6;
 }
 
-/* Hide the hint completely (clutter + overlaps) */
+/* Hide hint completely */
 .keelie-suggest-hint{
   display:none !important;
 }
 
-/* When suggesting: calm the chat + hide footer clutter */
+/* When suggesting: hide clutter and calm the chat */
 .keelie-panel.is-suggesting .keelie-chat{
   opacity:.15;
   filter:blur(1px);
@@ -371,6 +268,7 @@
 .keelie-panel.is-suggesting .keelie-status{
   display:none !important;
 }
+
 
 
 /* -----------------------------
