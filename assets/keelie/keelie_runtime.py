@@ -695,29 +695,26 @@ async def send_message():
     window.keelieClearInput()
     window.keelieAddBubble("You", msg)
 
-    # ✅ Stage 1: thinking
+    # Stage 1: thinking
     if hasattr(window, "keelieSetThinking"):
         window.keelieSetThinking(True)
     if hasattr(window, "keelieSetTyping"):
         window.keelieSetTyping(False)
 
-    # thinking delay (random but bounded)
     await asyncio.sleep(random.uniform(0.35, 0.75))
 
-    # ✅ Stage 2: typing
+    # Stage 2: typing
     if hasattr(window, "keelieSetThinking"):
         window.keelieSetThinking(False)
     if hasattr(window, "keelieSetTyping"):
         window.keelieSetTyping(True)
 
-    # typing delay depends a bit on message length
     base = 0.35
-    per_char = min(len(msg) * 0.01, 0.9)  # cap extra delay
+    per_char = min(len(msg) * 0.01, 0.9)
     await asyncio.sleep(base + per_char)
 
     reply = keelie_reply(msg)
 
-    # ✅ turn off indicators, show reply
     if hasattr(window, "keelieSetTyping"):
         window.keelieSetTyping(False)
 

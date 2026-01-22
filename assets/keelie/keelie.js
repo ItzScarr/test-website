@@ -169,8 +169,12 @@ function mountWidget() {
   // Start python
   showLoading();
   const py = document.createElement("py-script");
+
+  // ✅ Cache-bust Python runtime too
   py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=5`);
+
   document.body.appendChild(py);
+
 
   const readyCheck = setInterval(() => {
     if (typeof window.keelieSend === "function") {
