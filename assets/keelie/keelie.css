@@ -460,3 +460,47 @@
     height:calc(100% - 160px);
   }
 }
+/* =====================================================
+   HARD FIX: input row never moves (pinned)
+   ===================================================== */
+
+/* Footer is a fixed container */
+.keelie-footer{
+  position:relative !important;
+  height:140px !important;      /* enough for 3 suggestions + input */
+  padding:10px 12px !important;
+  box-sizing:border-box !important;
+}
+
+/* Suggestions are a fixed slot at top of footer (do NOT push layout) */
+.keelie-suggest{
+  position:absolute !important;
+  left:12px !important;
+  right:12px !important;
+  top:10px !important;
+  height:78px !important;       /* shows ~3 suggestions */
+  display:none;                  /* JS toggles to block */
+}
+
+/* Suggest list fills the slot */
+.keelie-suggest-list{
+  height:100% !important;
+  overflow:auto !important;
+}
+
+/* ✅ Input row pinned to bottom (never pushed) */
+.keelie-row{
+  position:absolute !important;
+  left:12px !important;
+  right:12px !important;
+  bottom:10px !important;
+  display:flex !important;
+  gap:8px !important;
+  align-items:center !important;
+}
+
+/* Hide clutter during suggest mode (optional) */
+.keelie-panel.is-suggesting .keelie-privacy,
+.keelie-panel.is-suggesting .keelie-status{
+  display:none !important;
+}
