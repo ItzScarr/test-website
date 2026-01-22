@@ -153,12 +153,19 @@ window.keelieClearStatus = removeStatus;
     inputEl.focus();
   }
 
-  function closePanel() {
-    panel.classList.remove("is-open");
-    window.keelieSetThinking(false);
-    window.keelieSetTyping(false);
-    if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
+ function closePanel() {
+  panel.classList.remove("is-open");
+
+  // ✅ Clear inline status bubble (new system)
+  if (typeof window.keelieClearStatus === "function") {
+    window.keelieClearStatus();
   }
+
+  if (lastFocused && typeof lastFocused.focus === "function") {
+    lastFocused.focus();
+  }
+}
+
 
   launcher.addEventListener("click", () => {
     panel.classList.contains("is-open") ? closePanel() : openPanel();
