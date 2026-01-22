@@ -584,6 +584,24 @@ INTENTS = {
             f"Thanks for chatting with {COMPANY_NAME}! Have a lovely day 😊"
         ],
     ),
+    "invoice_copy": Intent(
+    priority=6,
+    keywords={
+        "invoice": 5,
+        "last invoice": 7,
+        "copy of my invoice": 7,
+        "invoice copy": 6,
+        "invoice history": 6,
+        "past invoice": 6,
+        "order invoice": 5,
+        "download invoice": 6
+    },
+    responses=[
+        "You can access copies of your invoices by logging in to your account, then navigating to:\n\n"
+        "**Account > My Orders > Invoice History**"
+    ],
+),
+
 }
 
 FALLBACK = (
