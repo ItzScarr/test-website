@@ -377,7 +377,7 @@
   left:12px;
   right:12px;
   top:10px;
-  height:84px;          /* ~3 rows @ ~26px each + separators */
+  height:100px;          /* ~3 rows @ ~26px each + separators */
   display:none;
 }
 
