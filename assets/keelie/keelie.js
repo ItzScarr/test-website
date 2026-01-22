@@ -28,10 +28,10 @@ function escapeHtml(s) {
 function formatKeelie(text) {
   let safe = escapeHtml(text);
 
-  // **bold**
+  // Bold: **text**
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<span class="keelie-bold">$1</span>');
 
-  // newlines
+  // Newlines
   safe = safe.replace(/\n/g, "<br>");
 
   return safe;
@@ -47,7 +47,6 @@ function mountWidget() {
     </button>
   `);
 
-  // NOTE: autosuggest container is ABOVE input row (in-flow, no overlap)
   const panel = el(`
     <div class="keelie-panel" role="dialog" aria-label="Keelie chat" aria-modal="true">
       <div class="keelie-header">
@@ -57,7 +56,7 @@ function mountWidget() {
           <span>Keel Toys assistant</span>
         </div>
 
-        <a class="keelie-contact" href="${CONTACT_URL}" target="_blank" rel="noopener noreferrer">
+        <a class="keelie-contact" href="${CONTACT_URL}" target="_blank" rel="noopener noreferrer" aria-label="Contact Keel Toys">
           Contact
         </a>
 
@@ -67,6 +66,7 @@ function mountWidget() {
       <div class="keelie-chat" id="keelie-chat"></div>
 
       <div class="keelie-footer">
+        <!-- Autosuggest overlay (positioned via CSS) -->
         <div class="keelie-suggest" id="keelie-suggest" style="display:none;">
           <div class="keelie-suggest-list" id="keelie-suggest-list"></div>
         </div>
@@ -94,62 +94,96 @@ function mountWidget() {
   const sendBtn = panel.querySelector("#keelie-send");
   const closeBtn = panel.querySelector(".keelie-close");
 
-  // Status lines exist for fallback; Python also uses inline status bubbles via window.keelieShowStatus
-  const thinkingEl = panel.querySelector("#keelie-thinking");
-  const typingEl = panel.querySelector("#keelie-typing");
+  // ==============================
+  // FLIP animation helpers (smooth reflow)
+  // ==============================
+  function flipAnimate(mutator) {
+    const items = Array.from(chatEl.querySelectorAll(".keelie-msg"));
+    const first = new Map(items.map((el) => [el, el.getBoundingClientRect().top]));
+
+    mutator();
+
+    const items2 = Array.from(chatEl.querySelectorAll(".keelie-msg"));
+    const last = new Map(items2.map((el) => [el, el.getBoundingClientRect().top]));
+
+    items2.forEach((el) => {
+      const dy = (first.get(el) ?? last.get(el)) - last.get(el);
+      if (!dy) return;
+      el.style.transform = `translateY(${dy}px)`;
+      el.style.transition = "transform 0s";
+      requestAnimationFrame(() => {
+        el.style.transition = "";
+        el.style.transform = "";
+      });
+    });
+  }
+
+  function removeBubbleSmooth(row) {
+    if (!row || !row.parentNode) return;
+    row.classList.add("is-leaving");
+    // match CSS transition duration (~220ms)
+    setTimeout(() => {
+      if (!row.parentNode) return;
+      flipAnimate(() => row.remove());
+    }, 230);
+  }
 
   // ==============================
-  // Chat bubbles
+  // Chat bubbles (animated)
   // ==============================
   function addBubble(who, text) {
     const row = document.createElement("div");
-    row.className = `keelie-msg ${who === "You" ? "you" : "bot"}`;
+    row.className = `keelie-msg ${who === "You" ? "you" : "bot"} is-entering`;
 
     const bubble = document.createElement("div");
     bubble.className = "keelie-bubble";
     bubble.innerHTML = formatKeelie(text);
 
     row.appendChild(bubble);
-    chatEl.appendChild(row);
+
+    flipAnimate(() => {
+      chatEl.appendChild(row);
+    });
+
+    requestAnimationFrame(() => {
+      row.classList.remove("is-entering");
+    });
+
     chatEl.scrollTop = chatEl.scrollHeight;
+    return row;
   }
 
   // Expose to Python runtime
   window.keelieAddBubble = addBubble;
   window.keelieGetInput = () => inputEl.value || "";
-  window.keelieClearInput = () => { inputEl.value = ""; };
+  window.keelieClearInput = () => {
+    inputEl.value = "";
+  };
 
-  // Inline status bubble (used by Python)
-  let statusBubble = null;
+  // ==============================
+  // Inline status bubble (used by Python if needed)
+  // ==============================
+  let statusRow = null;
 
   function showStatus(text) {
-    clearStatus();
-    const row = document.createElement("div");
-    row.className = "keelie-msg bot keelie-status-msg";
-
-    const bubble = document.createElement("div");
-    bubble.className = "keelie-bubble keelie-status-bubble";
-    bubble.textContent = text;
-
-    row.appendChild(bubble);
-    chatEl.appendChild(row);
-    chatEl.scrollTop = chatEl.scrollHeight;
-
-    statusBubble = row;
+    if (statusRow) removeBubbleSmooth(statusRow);
+    statusRow = addBubble("Keelie", text);
+    // make it look like a status bubble via CSS class if you have it
+    statusRow.classList.add("keelie-status-msg");
+    const bubble = statusRow.querySelector(".keelie-bubble");
+    if (bubble) bubble.classList.add("keelie-status-bubble");
   }
 
   function clearStatus() {
-    if (statusBubble && statusBubble.parentNode) statusBubble.parentNode.removeChild(statusBubble);
-    statusBubble = null;
+    if (statusRow) removeBubbleSmooth(statusRow);
+    statusRow = null;
   }
 
   window.keelieShowStatus = showStatus;
   window.keelieClearStatus = clearStatus;
 
   // ==============================
-  // Autosuggest (professional + safe)
-  // - shows only after 2+ chars
-  // - click suggestion: fills input + sends (via sendBtn.click())
+  // Autosuggest (overlay; click sends)
   // ==============================
   const suggestWrap = panel.querySelector("#keelie-suggest");
   const suggestList = panel.querySelector("#keelie-suggest-list");
@@ -188,12 +222,14 @@ function mountWidget() {
     const qTokens = new Set(q.split(/\s+/).filter(Boolean));
     const iTokens = new Set(it.split(/\s+/).filter(Boolean));
     let overlap = 0;
-    qTokens.forEach(t => { if (iTokens.has(t)) overlap++; });
+    qTokens.forEach((t) => {
+      if (iTokens.has(t)) overlap++;
+    });
 
-    return overlap > 0 ? (40 + overlap) : 0;
+    return overlap > 0 ? 40 + overlap : 0;
   }
 
-  // Function declaration (hoisted) so it can never be "not defined"
+  // Hoisted => never "not defined"
   function hideSuggest() {
     if (!SUGGEST_ENABLED) return;
     suggestWrap.style.display = "none";
@@ -215,7 +251,7 @@ function mountWidget() {
     });
   }
 
-  function acceptActiveSuggest() {
+  function acceptActiveSuggestAndSend() {
     if (!SUGGEST_ENABLED) return false;
     if (activeSuggestIndex < 0) return false;
 
@@ -225,7 +261,7 @@ function mountWidget() {
     inputEl.value = chosen;
     hideSuggest();
 
-    // ✅ Guaranteed send: click the actual Send button
+    // Guaranteed send path
     setTimeout(() => sendBtn.click(), 0);
     return true;
   }
@@ -249,14 +285,15 @@ function mountWidget() {
       btn.className = "keelie-suggest-item";
       btn.textContent = text;
 
-      // pointerdown is the most reliable across devices;
-      // preventDefault stops input blur issues.
+      // Use pointerdown so it works on mobile + doesn't blur input
       btn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
+        e.stopPropagation();
+
         inputEl.value = text;
         hideSuggest();
 
-        // ✅ Guaranteed send: click Send button
+        // Guaranteed send path
         setTimeout(() => sendBtn.click(), 0);
       });
 
@@ -271,19 +308,17 @@ function mountWidget() {
     if (!SUGGEST_ENABLED) return;
 
     const query = (inputEl.value || "").trim();
-
-    // Only show after 2+ chars
     if (query.length < 2) {
       hideSuggest();
       return;
     }
 
     const ranked = SUGGESTIONS
-      .map(item => ({ item, s: scoreSuggestion(query, item) }))
-      .filter(x => x.s > 0)
+      .map((item) => ({ item, s: scoreSuggestion(query, item) }))
+      .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s)
       .slice(0, 6)
-      .map(x => x.item);
+      .map((x) => x.item);
 
     renderSuggest(ranked);
   }
@@ -312,7 +347,7 @@ function mountWidget() {
 
   closeBtn.addEventListener("click", closePanel);
 
-  // Escape: close suggest first, then close panel
+  // Escape closes suggest first, then panel
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (!panel.classList.contains("is-open")) return;
@@ -324,8 +359,8 @@ function mountWidget() {
     closePanel();
   });
 
-  // Click-away inside panel hides suggestions (not panel)
-  document.addEventListener("click", (e) => {
+  // Click-away inside panel hides suggestions
+  document.addEventListener("pointerdown", (e) => {
     if (!SUGGEST_ENABLED) return;
     if (!panel.contains(e.target)) return;
     if (e.target === inputEl) return;
@@ -353,7 +388,6 @@ function mountWidget() {
   inputEl.addEventListener("input", () => updateSuggest());
 
   inputEl.addEventListener("keydown", (e) => {
-    // If suggestions are open, allow navigation + Enter to accept (and send)
     if (SUGGEST_ENABLED && suggestWrap.style.display !== "none") {
       const max = currentSuggestItems.length - 1;
 
@@ -372,10 +406,8 @@ function mountWidget() {
       }
 
       if (e.key === "Enter") {
-        // Accept highlighted suggestion -> sends automatically
-        if (acceptActiveSuggest()) return;
-        // Otherwise send typed text
         e.preventDefault();
+        if (acceptActiveSuggestAndSend()) return;
         doSend();
         return;
       }
@@ -390,7 +422,12 @@ function mountWidget() {
   // ==============================
   // Boot + Python runtime
   // ==============================
-  addBubble("Keelie", "Loading assistant…");
+  const loadingRow = addBubble("Keelie", "Loading assistant…");
+
+  // ✅ Fade away after 3 seconds + smooth reflow
+  setTimeout(() => {
+    removeBubbleSmooth(loadingRow);
+  }, 3000);
 
   const py = document.createElement("py-script");
   // bump this ?v= if you change python file

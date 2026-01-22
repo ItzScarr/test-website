@@ -299,3 +299,23 @@
     bottom:62px;
   }
 }
+/* =====================================================
+   Smooth bubble animations (fade/slide + smooth reflow)
+   ===================================================== */
+
+.keelie-msg{
+  transition: transform 220ms ease, opacity 220ms ease;
+  will-change: transform, opacity;
+}
+
+/* New bubble enters */
+.keelie-msg.is-entering{
+  opacity:0;
+  transform: translateY(10px);
+}
+
+/* Bubble exits (slides up slightly + fades) */
+.keelie-msg.is-leaving{
+  opacity:0;
+  transform: translateY(-10px);
+}
