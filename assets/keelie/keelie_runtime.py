@@ -654,7 +654,7 @@ def keelie_reply(user_input: str) -> str:
 
     cleaned = clean_text(user_input)
 
-    # ✅ Greeting MUST run first (prevents misrouting like "hi" → delivery)
+    # ✅ Greeting MUST run first
     if is_greeting(user_input):
         PENDING_STOCK_LOOKUP = False
         return random.choice(INTENTS["greeting"].responses)
