@@ -363,43 +363,39 @@
   gap:8px;
 }
 
-/* =====================================================
-   Stable footer: NEVER moves
-   Reserve space for autosuggest so layout doesn't jump
-   ===================================================== */
 
-/* Make the footer a fixed-height area */
-/* =====================================================
-   Stable footer (compact, no jumping)
-   ===================================================== */
-
+/* Fixed footer height: enough for 3 suggestions + input row */
 .keelie-footer{
-  position:relative;
-  height:112px;             /* ↓ reduced from 156px */
+  height:136px;         /* was ~112px; this gives room for 3 suggestions */
   padding:10px 12px;
   box-sizing:border-box;
 }
 
-/* Reserved slot for suggestions (compact) */
+/* Reserved slot for suggestions */
 .keelie-suggest{
   position:absolute;
   left:12px;
   right:12px;
   top:10px;
-  height:56px;              /* ↓ reduced from 96px */
+  height:84px;          /* ~3 rows @ ~26px each + separators */
   display:none;
 }
 
+/* Make the list fill the slot */
 .keelie-suggest-list{
   height:100%;
   overflow:auto;
-  background:#fff;
-  border:1px solid var(--keelie-border);
   border-radius:12px;
-  box-shadow:0 8px 18px rgba(0,0,0,.10);
 }
 
-/* Input row pinned to bottom (never moves) */
+/* Slightly tighter rows so 3 items fit nicely */
+.keelie-suggest-item{
+  padding:8px 12px;     /* was 10px 14px */
+  font-size:13px;
+  line-height:1.25;
+}
+
+/* Input stays pinned */
 .keelie-row{
   position:absolute;
   left:12px;
