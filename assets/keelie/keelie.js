@@ -197,6 +197,15 @@ function mountWidget() {
     return overlap > 0 ? (40 + overlap) : 0;
   }
 
+function hideSuggest() {
+  if (!SUGGEST_ENABLED) return;
+  suggestWrap.style.display = "none";
+  suggestList.innerHTML = "";
+  activeSuggestIndex = -1;
+  currentSuggestItems = [];
+  panel.classList.remove("is-suggesting");
+}
+
 function renderSuggest(items) {
   if (!SUGGEST_ENABLED) return;
 
