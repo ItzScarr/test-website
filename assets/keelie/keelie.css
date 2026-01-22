@@ -134,4 +134,33 @@
   font-weight: 600;
 }
 
+/* Contact link in header */
+.keelie-contact{
+  margin-left:auto;
+  font-size:12px;
+  font-weight:700;
+  color:#166a3a;
+  text-decoration:none;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid #e5e7eb;
+  background:#fff;
+}
+.keelie-contact:hover{
+  background:#fafafa;
+  text-decoration:none;
+}
+
+/* Privacy note */
+.keelie-privacy{
+  margin-top:8px;
+  font-size:11px;
+  color:#6b7280;
+  line-height:1.35;
+}
+
+/* Less-bold bold */
+.keelie-bubble .keelie-bold{
+  font-weight:600; /* adjust to 500–700 if you want */
+}
 
