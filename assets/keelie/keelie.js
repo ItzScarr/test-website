@@ -159,6 +159,16 @@ function mountWidget() {
   const suggestHint = panel.querySelector("#keelie-suggest-hint");
   const SUGGEST_ENABLED = !!(suggestWrap && suggestList && suggestHint);
 
+  function hideSuggest() {
+  if (!SUGGEST_ENABLED) return;
+  suggestWrap.style.display = "none";
+  if (suggestHint) suggestHint.style.display = "none";
+  suggestList.innerHTML = "";
+  activeSuggestIndex = -1;
+  currentSuggestItems = [];
+  panel.classList.remove("is-suggesting");
+  }
+
   const SUGGESTIONS = [
     "What’s the minimum order value?",
     "What’s the minimum value?",
@@ -197,14 +207,6 @@ function mountWidget() {
     return overlap > 0 ? (40 + overlap) : 0;
   }
 
-function hideSuggest() {
-  if (!SUGGEST_ENABLED) return;
-  suggestWrap.style.display = "none";
-  suggestList.innerHTML = "";
-  activeSuggestIndex = -1;
-  currentSuggestItems = [];
-  panel.classList.remove("is-suggesting");
-}
 
 function renderSuggest(items) {
   if (!SUGGEST_ENABLED) return;
