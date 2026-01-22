@@ -695,28 +695,25 @@ async def send_message():
     window.keelieClearInput()
     window.keelieAddBubble("You", msg)
 
-    # Stage 1: thinking
-    if hasattr(window, "keelieSetThinking"):
-        window.keelieSetThinking(True)
-    if hasattr(window, "keelieSetTyping"):
-        window.keelieSetTyping(False)
+    # --- Thinking ---
+    if hasattr(window, "keelieShowStatus"):
+        window.keelieShowStatus("Keelie is thinking…")
 
-    await asyncio.sleep(random.uniform(0.35, 0.75))
+    await asyncio.sleep(random.uniform(0.4, 0.8))
 
-    # Stage 2: typing
-    if hasattr(window, "keelieSetThinking"):
-        window.keelieSetThinking(False)
-    if hasattr(window, "keelieSetTyping"):
-        window.keelieSetTyping(True)
+    # --- Typing ---
+    if hasattr(window, "keelieShowStatus"):
+        window.keelieShowStatus("Keelie is typing…")
 
     base = 0.35
-    per_char = min(len(msg) * 0.01, 0.9)
+    per_char = min(len(msg) * 0.01, 1.0)
     await asyncio.sleep(base + per_char)
 
-    reply = keelie_reply(msg)
+    # Remove status bubble
+    if hasattr(window, "keelieClearStatus"):
+        window.keelieClearStatus()
 
-    if hasattr(window, "keelieSetTyping"):
-        window.keelieSetTyping(False)
+    reply = keelie_reply(msg)
 
     window.keelieAddBubble("Keelie", reply)
 

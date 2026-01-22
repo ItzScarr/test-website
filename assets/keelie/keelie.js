@@ -107,9 +107,39 @@ function mountWidget() {
   // Expose to Python
   window.keelieAddBubble = addBubble;
 
-  // ✅ New: thinking/typing toggles
-  window.keelieSetThinking = (on) => { thinkingEl.style.display = on ? "block" : "none"; };
-  window.keelieSetTyping = (on) => { typingEl.style.display = on ? "block" : "none"; };
+// ==============================
+// Inline status bubbles
+// ==============================
+let statusBubble = null;
+
+function showStatus(text) {
+  removeStatus();
+
+  const row = document.createElement("div");
+  row.className = "keelie-msg bot keelie-status-msg";
+
+  const bubble = document.createElement("div");
+  bubble.className = "keelie-bubble keelie-status-bubble";
+  bubble.textContent = text;
+
+  row.appendChild(bubble);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+
+  statusBubble = row;
+}
+
+function removeStatus() {
+  if (statusBubble && statusBubble.parentNode) {
+    statusBubble.parentNode.removeChild(statusBubble);
+  }
+  statusBubble = null;
+}
+
+// Expose to Python
+window.keelieShowStatus = showStatus;
+window.keelieClearStatus = removeStatus;
+
 
   window.keelieGetInput = () => inputEl.value || "";
   window.keelieClearInput = () => { inputEl.value = ""; };
@@ -171,7 +201,7 @@ function mountWidget() {
   const py = document.createElement("py-script");
 
   // ✅ Cache-bust Python runtime too
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=5`);
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=7`);
 
   document.body.appendChild(py);
 
