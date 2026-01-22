@@ -1,11 +1,6 @@
 import "https://pyscript.net/releases/2024.9.2/core.js";
-
-/*
-IMPORTANT:
-If your site is https://username.github.io/test-website/
-this path MUST be relative (NO leading slash)
-*/
 const BASE_PATH = "assets/keelie";
+
 
 // ==============================
 // Element helper
@@ -30,9 +25,7 @@ function escapeHtml(s) {
 
 function formatKeelie(text) {
   let safe = escapeHtml(text);
-
-  // ✅ FORCE bold using class (NOT <strong>)
-  safe = safe.replace(/\*\*(.+?)\*\*/g, '<span class="keelie-bold">$1</span>');
+  safe = safe.replace(/\*\*([^\n*][\s\S]*?[^\n*])\*\*/g, '<span class="keelie-bold">$1</span>');
 
   // Newlines
   safe = safe.replace(/\n/g, "<br>");
