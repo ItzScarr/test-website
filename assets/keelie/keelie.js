@@ -54,13 +54,39 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;")
     .replace(/\'/g, "&#039;");
 }
+function linkify(safeHtmlText) {
+  // Converts http(s) URLs into clickable links.
+  // Input MUST already be escaped (so we’re not injecting user HTML).
+  const urlRe = /\bhttps?:\/\/[^\s<]+/gi;
+
+  return safeHtmlText.replace(urlRe, (url) => {
+    // Trim common trailing punctuation that often follows URLs in sentences
+    const trimmed = url.replace(/[)\].,!?;:]+$/g, "");
+    const trailing = url.slice(trimmed.length);
+
+    return (
+      `<a href="${trimmed}" target="_blank" rel="noopener noreferrer">${trimmed}</a>` +
+      trailing
+    );
+  });
+}
+
 
 function formatKeelie(text) {
   let safe = escapeHtml(text);
+
+  // ✅ clickable links (after escaping)
+  safe = linkify(safe);
+
+  // **bold**
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<span class="keelie-bold">$1</span>');
+
+  // newlines
   safe = safe.replace(/\n/g, "<br>");
+
   return safe;
 }
+
 
 // Professional greeting HTML
 function greetingHtml() {
