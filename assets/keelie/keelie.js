@@ -454,7 +454,7 @@ function mountWidget() {
   // ==============================
   // Boot + Python runtime
   // ==============================
-  addBubble("Keelie", "Loading assistant…");
+  showStatus("Loading assistant…");
 
   const py = document.createElement("py-script");
   // bump this ?v= if you change python file
@@ -463,6 +463,7 @@ function mountWidget() {
 
   const failTimer = setTimeout(() => {
     if (!pythonReady) {
+      clearStatus();
       addBubble(
         "Keelie",
         "Sorry — the assistant didn’t load properly.\n\nYou can contact our team here:\n" + CONTACT_URL
@@ -475,6 +476,8 @@ function mountWidget() {
       pythonReady = true;
       clearTimeout(failTimer);
       clearInterval(readyCheck);
+
+      clearStatus();
 
       addBubble(
         "Keelie",
