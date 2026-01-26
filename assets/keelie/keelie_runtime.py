@@ -31,6 +31,20 @@ PRODUCTION_INFO = (
 )
 
 # =========================
+# Help / capabilities overview
+# =========================
+HELP_OVERVIEW = (
+    "I can help with:\n"
+    "• **Minimum order values** (e.g. “minimum order value”)\n"
+    "• **Stock codes / SKUs** (e.g. “stock code for Polar Bear Plush 20cm”)\n"
+    "• **Keeleco® sustainability & recycled materials**\n"
+    "• **Where our toys are made**\n"
+    "• **Delivery & tracking** (e.g. “where is my order?”)\n"
+    "• **Invoices** (e.g. “download an invoice”)\n\n"
+    "What would you like to ask?"
+)
+
+# =========================
 # Eco / sustainability overview (Keeleco)
 # =========================
 KEELECO_OVERVIEW = (
@@ -41,7 +55,7 @@ KEELECO_OVERVIEW = (
     "• Our Keel logo + hangtags use **FSC card** and are attached with **cotton**.\n"
     "• Shipping cartons are recycled and sealed with **paper tape**.\n"
     "• Keeleco is made in an **ethically audited** factory.\n\n"
-    "If you tell me which Keeleco sub-range you mean (e.g. *Keeleco Dinosaurs*), I can share more details."
+    "If you tell me which Keeleco sub-range you mean (e.g. *Keeleco Dinosaurs*), I can share details."
 )
 
 # =========================
@@ -143,15 +157,14 @@ def is_eco_question(text: str) -> bool:
     return any(x in t for x in triggers)
 
 
+
 # =========================
-# Privacy guardrail (prevent sharing personal/account details)
+# Privacy guardrail
 # =========================
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
-
-# Loose phone detection (UK-friendly but general)
+# Loose phone detection (UK-friendly, but general enough)
 PHONE_RE = re.compile(r"(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d")
-
-# “Order ref” cues + medium/long digit sequences (avoid triggering on toy sizes like 20cm)
+# Only treat long digit sequences as sensitive if they look order/account-related
 ORDER_CUE_RE = re.compile(r"\b(order|invoice|account|ref|reference|tracking|awb|consignment)\b", re.I)
 LONG_DIGITS_RE = re.compile(r"\b\d{6,}\b")
 
@@ -161,17 +174,33 @@ def contains_personal_info(text: str) -> bool:
         return True
     if PHONE_RE.search(t):
         return True
-    # Only treat long digit sequences as sensitive if they look order/account-ish
     if ORDER_CUE_RE.search(t) and LONG_DIGITS_RE.search(t):
         return True
     return False
 
 def privacy_warning() -> str:
     return (
-        "For your privacy, please don’t share personal or account details here (for example: email addresses, phone numbers, or order/invoice references).\n\n"
-        "For help with an order or account query, please contact our customer service team here:\n"
+        "For your privacy, please don’t share personal or account details here "
+        "(such as email addresses, phone numbers, or order/invoice references).\n\n"
+        "Our customer service team can help you securely here:\n"
         f"{CUSTOMER_SERVICE_URL}"
     )
+
+def is_help_question(text: str) -> bool:
+    t = clean_text(text)
+    triggers = [
+        "what can you help with",
+        "what can you do",
+        "what do you do",
+        "how can you help",
+        "what can i ask",
+        "what can i ask you",
+        "what questions can i ask",
+        "what are you for",
+        "what can keelie help with",
+        "how do you work",
+    ]
+    return any(x in t for x in triggers)
 
 
 # =========================
@@ -188,10 +217,11 @@ def is_greeting(text: str) -> bool:
 
 def minimum_order_response() -> str:
     return (
-        "Minimum order values:\n"
+        "Our minimum order values are:\n"
         f"• £{MIN_ORDER_FIRST} for first-time buyers\n"
         f"• £{MIN_ORDER_REPEAT} for repeat buyers\n\n"
-        "If you’re unsure whether you qualify as a first-time or repeat buyer, please contact our team:\n"
+        "If you’re unsure whether you qualify as a first-time or repeat buyer, "
+        "our customer service team can help:\n"
         f"{CUSTOMER_SERVICE_URL}"
     )
 
@@ -592,7 +622,7 @@ INTENTS = {
             "agent": 4, "human": 4, "contact": 3
         },
         responses=[
-            "Please contact Keel Toys customer service here:\n"
+            "Of course! 😊 You can contact Keel Toys customer service here:\n"
             f"{CUSTOMER_SERVICE_URL}"
         ],
     ),
@@ -617,8 +647,8 @@ INTENTS = {
             "shipped": 4,
         },
         responses=[
-            "To check your delivery status, please refer to your order confirmation email. "
-            "It includes your estimated delivery date and any available tracking information."
+            "For delivery updates, please check your order confirmation email. "
+            "It includes your estimated delivery date and tracking details if available."
         ],
     ),
     "greeting": Intent(
@@ -628,16 +658,27 @@ INTENTS = {
             "good morning": 2, "good afternoon": 2, "good evening": 2
         },
         responses=[
-            f"Hello! 👋 I’m {BOT_NAME}, the {COMPANY_NAME} assistant. How can I help you today?"
+            f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
         ],
     ),
-    "goodbye": Intent(
+        "help": Intent(
+        priority=3,
+        keywords={
+            "what can you do": 6,
+            "what can you help with": 6,
+            "how can you help": 6,
+            "what can i ask": 5,
+        },
+        responses=[HELP_OVERVIEW],
+    ),
+
+"goodbye": Intent(
         priority=1,
         keywords={
             "bye": 2, "goodbye": 2, "thanks": 1, "thank you": 1, "thx": 1, "cheers": 1
         },
         responses=[
-            f"Thanks for chatting with {COMPANY_NAME}. Have a great day."
+            f"Thanks for chatting with {COMPANY_NAME}! Have a lovely day 😊"
         ],
     ),
     "invoice_copy": Intent(
@@ -653,28 +694,23 @@ INTENTS = {
         "download invoice": 6
     },
     responses=[
-        "Copies of your invoices are available by logging in to your account and navigating to:\n\n"
+        "You can access copies of your invoices by logging in to your account, then navigating to:\n\n"
         "**Account > My Orders > Invoice History**"
     ],
 ),
 
 }
 
-FALLBACK = f"""
-I’m not able to help with that just now.
-
-I can help with:
-• Stock codes / SKUs
-• Minimum order values
-• Keeleco® recycled materials
-• Delivery and invoice queries
-
-If you need further assistance, our customer service team can help here:
-{CUSTOMER_SERVICE_URL}
-""".strip()
-
-
-
+FALLBACK = (
+    "I’m not able to help with that just now.\n\n"
+    "I can help with:\n"
+    "• Stock codes / SKUs\n"
+    "• Minimum order values\n"
+    "• Keeleco® recycled materials\n"
+    "• Delivery and invoice queries\n\n"
+    "If you need further assistance, our customer service team can help here:\n"
+    f"{CUSTOMER_SERVICE_URL}"
+)
 
 def detect_intent(cleaned_text: str) -> Optional[str]:
     best_intent = None
@@ -704,6 +740,11 @@ def keelie_reply(user_input: str) -> str:
     if is_greeting(user_input):
         PENDING_STOCK_LOOKUP = False
         return random.choice(INTENTS["greeting"].responses)
+
+    # ✅ Help / capabilities overview
+    if is_help_question(user_input):
+        PENDING_STOCK_LOOKUP = False
+        return HELP_OVERVIEW
 
     # ✅ Collections / ranges trigger (runs early)
     if any(x in cleaned for x in ["range", "ranges", "collection", "collections", "our collections"]):
