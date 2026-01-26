@@ -660,16 +660,19 @@ INTENTS = {
 
 }
 
-FALLBACK = (
-    "I’m not able to help with that just now.\n\n"
-    "I can help with:\n"
-    "• Stock codes / SKUs\n"
-    "• Minimum order values\n"
-    "• Keeleco® recycled materials\n"
-    "• Delivery and invoice queries\n\n"
-    "If you need further assistance, our customer service team can help here:\n"
-    f"{CUSTOMER_SERVICE_URL}"
-)
+FALLBACK = f"""
+I’m not able to help with that just now.
+
+I can help with:
+• Stock codes / SKUs
+• Minimum order values
+• Keeleco® recycled materials
+• Delivery and invoice queries
+
+If you need further assistance, our customer service team can help here:
+{CUSTOMER_SERVICE_URL}
+""".strip()
+
 
 
 
