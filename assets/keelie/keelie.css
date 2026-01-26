@@ -263,3 +263,8 @@
   opacity: 0.6;
   pointer-events: none;
 }
+.keelie-input:disabled,
+.keelie-send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
