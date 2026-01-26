@@ -182,7 +182,7 @@
 .keelie-suggest{
   position:absolute;
   left:12px; right:12px;
-  bottom:80px;          /* sits above the input row */
+  bottom:76px;          /* sits above the input row */
   z-index:10000;
   display:none;         /* JS toggles */
 }
