@@ -89,6 +89,11 @@ function mountWidget() {
   document.body.appendChild(launcher);
   document.body.appendChild(panel);
 
+  // Pulse the launcher once shortly after load (subtle attention cue)
+  setTimeout(() => launcher.classList.add("keelie-pulse"), 600);
+  setTimeout(() => launcher.classList.remove("keelie-pulse"), 2200);
+
+
   const chatEl = panel.querySelector("#keelie-chat");
   const inputEl = panel.querySelector("#keelie-text");
   const sendBtn = panel.querySelector("#keelie-send");
@@ -129,7 +134,7 @@ function mountWidget() {
 
     const bubble = document.createElement("div");
     bubble.className = "keelie-bubble keelie-status-bubble";
-    bubble.textContent = text;
+    bubble.innerHTML = `${escapeHtml(String(text).replace(/…+$/g, ""))}<span class="keelie-dots" aria-hidden="true"><span></span><span></span><span></span></span>`;
 
     row.appendChild(bubble);
     chatEl.appendChild(row);
