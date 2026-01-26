@@ -661,28 +661,16 @@ INTENTS = {
 }
 
 FALLBACK = (
-    "I’m not able to help with that just now.
-
-"
-    "I can help with:
-"
-    "• **Minimum order values**
-"
-    "• **Stock codes / SKUs**
-"
-    "• **Keeleco® recycled materials & sustainability**
-"
-    "• **Where our toys are made**
-"
-    "• **Delivery & order questions**
-"
-    "• **Invoices**
-
-"
-    "If you need further help, please contact customer service here:
-"
+    "I’m not able to help with that just now.\n\n"
+    "I can help with:\n"
+    "• Stock codes / SKUs\n"
+    "• Minimum order values\n"
+    "• Keeleco® recycled materials\n"
+    "• Delivery and invoice queries\n\n"
+    "If you need further assistance, our customer service team can help here:\n"
     f"{CUSTOMER_SERVICE_URL}"
 )
+
 
 def detect_intent(cleaned_text: str) -> Optional[str]:
     best_intent = None
