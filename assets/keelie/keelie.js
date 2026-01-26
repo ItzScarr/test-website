@@ -551,7 +551,7 @@ function addBubble(who, text) {
 
   const py = document.createElement("py-script");
   // bump this ?v= if you change python file
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=7`);
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=8`);
   document.body.appendChild(py);
 
   const failTimer = setTimeout(() => {
