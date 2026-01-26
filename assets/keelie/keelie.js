@@ -493,7 +493,7 @@ function mountWidget() {
   setTimeout(() => removeBubbleSmooth(loadingRow), 3000);
 
   const py = document.createElement("py-script");
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=8`); // bump if you edit python
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=9`); // bump if you edit python
   document.body.appendChild(py);
 
   const failTimer = setTimeout(() => {
