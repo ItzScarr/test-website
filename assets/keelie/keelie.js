@@ -106,7 +106,58 @@ function mountWidget() {
   // ==============================
   // Chat bubbles
   // ==============================
-  function addBubble(who, text) {
+    // ==============================
+  // Feedback buttons (👍/👎) — shown only on fallback answers
+  // ==============================
+  const FALLBACK_TRIGGER_RE = /I[’']m not able to help with that just now\./i;
+
+  function shouldOfferFeedback(who, text) {
+    if (who !== "Keelie") return false;
+    return FALLBACK_TRIGGER_RE.test(String(text || ""));
+  }
+
+  function attachFeedback(rowEl, originalText) {
+    if (rowEl.querySelector(".keelie-feedback")) return;
+
+    const bar = document.createElement("div");
+    bar.className = "keelie-feedback";
+
+    const yesBtn = document.createElement("button");
+    yesBtn.type = "button";
+    yesBtn.setAttribute("aria-label", "This was helpful");
+    yesBtn.textContent = "👍 Yes";
+
+    const noBtn = document.createElement("button");
+    noBtn.type = "button";
+    noBtn.setAttribute("aria-label", "This was not helpful");
+    noBtn.textContent = "👎 No";
+
+    bar.appendChild(yesBtn);
+    bar.appendChild(noBtn);
+    rowEl.appendChild(bar);
+
+    const ack = (helpful) => {
+      yesBtn.disabled = true;
+      noBtn.disabled = true;
+
+      bar.innerHTML = helpful
+        ? "<span>Thanks — glad I could help.</span>"
+        : "<span>Thanks — I’ll pass this on to our team.</span>";
+
+      // Optional: store locally (no server)
+      try{
+        const key = "keelie_feedback";
+        const prev = JSON.parse(localStorage.getItem(key) || "[]");
+        prev.push({ ts: Date.now(), helpful: !!helpful, text: String(originalText || "").slice(0, 240) });
+        localStorage.setItem(key, JSON.stringify(prev).slice(0, 5000));
+      }catch(e){}
+    };
+
+    yesBtn.addEventListener("click", () => ack(true));
+    noBtn.addEventListener("click", () => ack(false));
+  }
+
+function addBubble(who, text) {
     const row = document.createElement("div");
     row.className = `keelie-msg ${who === "You" ? "you" : "bot"}`;
 
@@ -115,6 +166,10 @@ function mountWidget() {
     bubble.innerHTML = formatKeelie(text);
 
     row.appendChild(bubble);
+    // Offer quick feedback on fallback answers only
+    if (shouldOfferFeedback(who, text)) {
+      attachFeedback(row, text);
+    }
     chatEl.appendChild(row);
     chatEl.scrollTop = chatEl.scrollHeight;
   }
