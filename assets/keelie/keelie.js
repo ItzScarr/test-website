@@ -214,13 +214,23 @@ function mountWidget() {
         : "<span class=\"keelie-feedback-thanks\">Thanks — noted.</span>";
 
       // Optional: store locally (no server)
-      try{
+      try {
         const key = "keelie_feedback";
-        const prev = JSON.parse(localStorage.getItem(key) || "[]");
-        prev.push({ ts: Date.now(), helpful: !!helpful, text: String(originalText || "").slice(0, 240) });
-        localStorage.setItem(key, JSON.stringify(prev).slice(0, 5000));
-      }catch(e){}
-    };
+        const data = JSON.parse(localStorage.getItem(key)) || {
+          helpful: 0,
+          notHelpful: 0
+        };
+
+        if (helpful) {
+          data.helpful += 1;
+        } else {
+          data.notHelpful += 1;
+        }
+
+        localStorage.setItem(key, JSON.stringify(data));
+      } catch (e) {
+        // silently ignore storage errors
+      }
 
     yesBtn.addEventListener("click", () => acknowledge(true));
     noBtn.addEventListener("click", () => acknowledge(false));
