@@ -3,7 +3,7 @@ import "https://pyscript.net/releases/2024.9.2/core.js";
 
 const BASE_PATH = "assets/keelie";
 const CONTACT_URL = "https://www.keeltoys.com/contact-us/";
-let userHasMessaged = false;
+
 // ==============================
 // Element helper
 // ==============================
@@ -12,7 +12,6 @@ function el(html) {
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
-
 
 // ==============================
 // Safe formatting helpers
@@ -108,85 +107,88 @@ function mountWidget() {
   // Chat bubbles
   // ==============================
     // ==============================
-  // Feedback buttons (👍/👎) — shown only on fallback answers
+  // Feedback buttons (👍/👎)
+  // - Shown on fallback AND key “high-value” answers
+  // - Never shown on the initial onboarding/help panel
+  // - Never shown until the user has actually sent a message
   // ==============================
   const FALLBACK_TRIGGER_RE = /I[’']m not able to help with that just now\./i;
-  
-  // High-value answer signatures (simple + robust)
+
   const FEEDBACK_TRIGGERS = [
     // Stock codes / SKU answers
     /\bstock\s*code\b/i,
     /\bsku\b/i,
-  
+
     // Minimum order values
     /\bminimum\s+order\b/i,
+    /\bminimum\s+order\s+values\b/i,
     /\b£\s*\d+/i,
-  
+
     // Invoices
     /\binvoice\b/i,
     /Invoice\s+History/i,
-  
+
     // Delivery / tracking
     /\btracking\b/i,
     /\border\s+confirmation\s+email\b/i,
     /\bdelivery\b/i,
-  
+
     // Keeleco / sustainability
     /\bkeeleco\b/i,
     /\brecycled\b/i,
-  
+
     // Production / where made
     /\bproduced\b/i,
     /\bmanufactur/i
   ];
-  
+
+  function isOnboardingPanel(text) {
+    const t = String(text || "");
+    return /\bI can help with\b/i.test(t) && /\bWhat would you like to ask\?\b/i.test(t);
+  }
+
   function shouldOfferFeedback(who, text) {
     if (who !== "Keelie") return false;
-
-    // ✅ Never show feedback until the user has actually asked something
     if (!userHasMessaged) return false;
 
     const t = String(text || "");
+    if (isOnboardingPanel(t)) return false;
 
-    // Don’t show feedback on onboarding/help overview
-    if (/\bI can help with:\b/i.test(t) && /\bWhat would you like to ask\?\b/i.test(t)) return false;
-
-    // Fallback always gets feedback
     if (FALLBACK_TRIGGER_RE.test(t)) return true;
-
-    // High-value answers get feedback
     return FEEDBACK_TRIGGERS.some(rx => rx.test(t));
   }
 
+  function attachFeedback(bubbleEl, originalText) {
+    if (!bubbleEl || bubbleEl.querySelector(".keelie-feedback")) return;
 
-  
-  function attachFeedback(rowEl, originalText) {
-    if (rowEl.querySelector(".keelie-feedback")) return;
+    const row = document.createElement("div");
+    row.className = "keelie-feedback";
 
-    const bar = document.createElement("div");
-    bar.className = "keelie-feedback";
+    const label = document.createElement("span");
+    label.className = "keelie-feedback-label";
+    label.textContent = "Helpful?";
 
     const yesBtn = document.createElement("button");
     yesBtn.type = "button";
     yesBtn.setAttribute("aria-label", "This was helpful");
-    yesBtn.textContent = "👍 Yes";
+    yesBtn.textContent = "👍";
 
     const noBtn = document.createElement("button");
     noBtn.type = "button";
     noBtn.setAttribute("aria-label", "This was not helpful");
-    noBtn.textContent = "👎 No";
+    noBtn.textContent = "👎";
 
-    bar.appendChild(yesBtn);
-    bar.appendChild(noBtn);
-    rowEl.appendChild(bar);
+    row.appendChild(label);
+    row.appendChild(yesBtn);
+    row.appendChild(noBtn);
+    bubbleEl.appendChild(row);
 
-    const ack = (helpful) => {
+    const acknowledge = (helpful) => {
       yesBtn.disabled = true;
       noBtn.disabled = true;
-
-      bar.innerHTML = helpful
-        ? "<span>Thanks — glad I could help.</span>"
-        : "<span>Thanks — I’ll pass this on to our team.</span>";
+      row.innerHTML = helpful
+        ? "<span class=\"keelie-feedback-thanks\">Thanks!</span>"
+        : "<span class=\"keelie-feedback-thanks\">Thanks — noted.</span>";
 
       // Optional: store locally (no server)
       try{
@@ -197,8 +199,8 @@ function mountWidget() {
       }catch(e){}
     };
 
-    yesBtn.addEventListener("click", () => ack(true));
-    noBtn.addEventListener("click", () => ack(false));
+    yesBtn.addEventListener("click", () => acknowledge(true));
+    noBtn.addEventListener("click", () => acknowledge(false));
   }
 
 function addBubble(who, text) {
@@ -210,7 +212,7 @@ function addBubble(who, text) {
     bubble.innerHTML = formatKeelie(text);
 
     row.appendChild(bubble);
-    // Offer quick feedback on fallback answers only
+    // Offer quick feedback on fallback + key answers
     if (shouldOfferFeedback(who, text)) {
       attachFeedback(bubble, text);
     }
@@ -441,6 +443,7 @@ function addBubble(who, text) {
   // Send flow
   // ==============================
   let pythonReady = false;
+  let userHasMessaged = false; // set true after the first user send
 
   // ==============================
   // Anti-spam rate limit
@@ -500,6 +503,7 @@ function addBubble(who, text) {
 
     const msg = (inputEl.value || "").trim();
     if (!msg) return;
+    userHasMessaged = true;
 
     // ✅ Anti-spam gate
     if (!registerSendOrCooldown()) return;
@@ -508,7 +512,6 @@ function addBubble(who, text) {
       addBubble("Keelie", "I’m still loading… please try again in a moment.");
       return;
     }
-    let userHasMessaged = false;
     await window.keelieSend();
   }
 
@@ -558,7 +561,7 @@ function addBubble(who, text) {
 
   const py = document.createElement("py-script");
   // bump this ?v= if you change python file
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=8`);
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=7`);
   document.body.appendChild(py);
 
   const failTimer = setTimeout(() => {
