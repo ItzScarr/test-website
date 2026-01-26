@@ -41,7 +41,7 @@ KEELECO_OVERVIEW = (
     "• Our Keel logo + hangtags use **FSC card** and are attached with **cotton**.\n"
     "• Shipping cartons are recycled and sealed with **paper tape**.\n"
     "• Keeleco is made in an **ethically audited** factory.\n\n"
-    "If you tell me which Keeleco sub-range you mean (e.g. *Keeleco Dinosaurs*), I can share details."
+    "If you tell me which Keeleco sub-range you mean (e.g. *Keeleco Dinosaurs*), I can share more details."
 )
 
 # =========================
@@ -168,9 +168,8 @@ def contains_personal_info(text: str) -> bool:
 
 def privacy_warning() -> str:
     return (
-        "For your privacy, please don’t share personal or account details here "
-        "(like email addresses, phone numbers, or order/invoice references).\n\n"
-        "Our customer service team can help securely here:\n"
+        "For your privacy, please don’t share personal or account details here (for example: email addresses, phone numbers, or order/invoice references).\n\n"
+        "For help with an order or account query, please contact our customer service team here:\n"
         f"{CUSTOMER_SERVICE_URL}"
     )
 
@@ -189,11 +188,10 @@ def is_greeting(text: str) -> bool:
 
 def minimum_order_response() -> str:
     return (
-        "Our minimum order values are:\n"
+        "Minimum order values:\n"
         f"• £{MIN_ORDER_FIRST} for first-time buyers\n"
         f"• £{MIN_ORDER_REPEAT} for repeat buyers\n\n"
-        "If you’re unsure whether you qualify as a first-time or repeat buyer, "
-        "our customer service team can help:\n"
+        "If you’re unsure whether you qualify as a first-time or repeat buyer, please contact our team:\n"
         f"{CUSTOMER_SERVICE_URL}"
     )
 
@@ -594,7 +592,7 @@ INTENTS = {
             "agent": 4, "human": 4, "contact": 3
         },
         responses=[
-            "Of course! 😊 You can contact Keel Toys customer service here:\n"
+            "You can reach Keel Toys customer service here:\n"
             f"{CUSTOMER_SERVICE_URL}"
         ],
     ),
@@ -663,8 +661,15 @@ INTENTS = {
 }
 
 FALLBACK = (
-    "I’m not able to help with that just now. "
-    f"Please contact Keel Toys customer service here:\n{CUSTOMER_SERVICE_URL}"
+    "I’m sorry — I can’t help with that via this chat.\n\n"
+    "I can help with:\n"
+    "• Minimum order values\n"
+    "• Stock codes / SKUs\n"
+    "• Keeleco® recycled materials\n"
+    "• Where our toys are made\n"
+    "• Delivery, tracking and invoices\n\n"
+    "If you still need help, please contact Keel Toys customer service here:\n"
+    f"{CUSTOMER_SERVICE_URL}"
 )
 
 def detect_intent(cleaned_text: str) -> Optional[str]:
