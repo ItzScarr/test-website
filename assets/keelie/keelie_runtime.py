@@ -672,6 +672,7 @@ FALLBACK = (
 )
 
 
+
 def detect_intent(cleaned_text: str) -> Optional[str]:
     best_intent = None
     best_score = 0
