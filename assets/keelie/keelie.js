@@ -25,8 +25,30 @@ function escapeHtml(s) {
     .replace(/\'/g, "&#039;");
 }
 
+
+function linkify(safeHtmlText) {
+  // Convert http(s) URLs into clickable links.
+  // Input MUST already be escaped.
+  const urlRe = /\bhttps?:\/\/[^\s<]+/gi;
+
+  return safeHtmlText.replace(urlRe, (url) => {
+    // Trim common trailing punctuation
+    const trimmed = url.replace(/[)\].,!?;:]+$/g, "");
+    const trailing = url.slice(trimmed.length);
+
+    return (
+      `<a href="${trimmed}" target="_blank" rel="noopener noreferrer">${trimmed}</a>` +
+      trailing
+    );
+  });
+}
+
+
 function formatKeelie(text) {
   let safe = escapeHtml(text);
+
+  // clickable links
+  safe = linkify(safe);
 
   // **bold**
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<span class="keelie-bold">$1</span>');
@@ -144,7 +166,8 @@ function mountWidget() {
 
   function isOnboardingPanel(text) {
     const t = String(text || "");
-    return /\bI can help with\b/i.test(t) && /\bWhat would you like to ask\?\b/i.test(t);
+    // Covers variants like: "I can help with..." or "I can help you with things like..."
+    return /\bI\s+can\s+help\b/i.test(t) && /\bWhat\s+would\s+you\s+like\s+to\s+ask\?\b/i.test(t);
   }
 
   function shouldOfferFeedback(who, text) {

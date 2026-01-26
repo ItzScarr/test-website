@@ -398,3 +398,13 @@
   opacity:.75;
   font-weight:600;
 }
+
+
+/* Links inside bubbles */
+.keelie-bubble a{
+  color: var(--keelie-brand-dark);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.keelie-bubble a:hover{ opacity: .85; }
