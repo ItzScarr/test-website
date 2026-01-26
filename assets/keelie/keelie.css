@@ -388,3 +388,36 @@
   opacity:0.6;
   cursor:not-allowed;
 }
+
+
+/* ==============================
+   Keelie feedback (refined)
+   ============================== */
+.keelie-feedback{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:10px;
+  padding-top:8px;
+  border-top:1px solid rgba(0,0,0,.06);
+  font-size: 13px;
+}
+.keelie-feedback-label{
+  opacity: .7;
+  font-weight: 600;
+}
+.keelie-feedback button{
+  border:1px solid rgba(0,0,0,.10);
+  background:rgba(255,255,255,.75);
+  border-radius:999px;
+  padding:4px 8px;
+  line-height: 1;
+  font-weight: 700;
+  cursor:pointer;
+}
+.keelie-feedback button:hover{ background:rgba(255,255,255,.95); }
+.keelie-feedback button:disabled{ opacity:.5; cursor:not-allowed; }
+.keelie-feedback-thanks{
+  opacity:.75;
+  font-weight:600;
+}

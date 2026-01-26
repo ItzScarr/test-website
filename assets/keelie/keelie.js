@@ -140,11 +140,19 @@ function mountWidget() {
   ];
   
   function shouldOfferFeedback(who, text) {
-    if (who !== "Keelie") return false;
-    const t = String(text || "");
-    if (FALLBACK_TRIGGER_RE.test(t)) return true;
-    return FEEDBACK_TRIGGERS.some(rx => rx.test(t));
-  }
+      if (who !== "Keelie") return false;
+      const t = String(text || "");
+  
+      // Don't show feedback on the onboarding/help overview panel
+      if (/\bI can help with:\b/i.test(t) && /\bWhat would you like to ask\?\b/i.test(t)) return false;
+  
+      // Fallback always gets feedback
+      if (FALLBACK_TRIGGER_RE.test(t)) return true;
+  
+      // High-value answers get feedback
+      return FEEDBACK_TRIGGERS.some(rx => rx.test(t));
+    }
+
   
   function attachFeedback(rowEl, originalText) {
     if (rowEl.querySelector(".keelie-feedback")) return;
@@ -543,7 +551,7 @@ function addBubble(who, text) {
 
   const py = document.createElement("py-script");
   // bump this ?v= if you change python file
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=8`);
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=7`);
   document.body.appendChild(py);
 
   const failTimer = setTimeout(() => {
