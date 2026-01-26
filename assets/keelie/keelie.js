@@ -3,7 +3,7 @@ import "https://pyscript.net/releases/2024.9.2/core.js";
 
 const BASE_PATH = "assets/keelie";
 const CONTACT_URL = "https://www.keeltoys.com/contact-us/";
-
+let userHasMessaged = false;
 // ==============================
 // Element helper
 // ==============================
@@ -12,6 +12,7 @@ function el(html) {
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
+
 
 // ==============================
 // Safe formatting helpers
@@ -140,18 +141,23 @@ function mountWidget() {
   ];
   
   function shouldOfferFeedback(who, text) {
-      if (who !== "Keelie") return false;
-      const t = String(text || "");
-  
-      // Don't show feedback on the onboarding/help overview panel
-      if (/\bI can help with:\b/i.test(t) && /\bWhat would you like to ask\?\b/i.test(t)) return false;
-  
-      // Fallback always gets feedback
-      if (FALLBACK_TRIGGER_RE.test(t)) return true;
-  
-      // High-value answers get feedback
-      return FEEDBACK_TRIGGERS.some(rx => rx.test(t));
-    }
+    if (who !== "Keelie") return false;
+
+    // ✅ Never show feedback until the user has actually asked something
+    if (!userHasMessaged) return false;
+
+    const t = String(text || "");
+
+    // Don’t show feedback on onboarding/help overview
+    if (/\bI can help with:\b/i.test(t) && /\bWhat would you like to ask\?\b/i.test(t)) return false;
+
+    // Fallback always gets feedback
+    if (FALLBACK_TRIGGER_RE.test(t)) return true;
+
+    // High-value answers get feedback
+    return FEEDBACK_TRIGGERS.some(rx => rx.test(t));
+  }
+
 
   
   function attachFeedback(rowEl, originalText) {
@@ -502,6 +508,7 @@ function addBubble(who, text) {
       addBubble("Keelie", "I’m still loading… please try again in a moment.");
       return;
     }
+    let userHasMessaged = false;
     await window.keelieSend();
   }
 
