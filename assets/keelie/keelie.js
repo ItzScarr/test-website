@@ -110,12 +110,42 @@ function mountWidget() {
   // Feedback buttons (👍/👎) — shown only on fallback answers
   // ==============================
   const FALLBACK_TRIGGER_RE = /I[’']m not able to help with that just now\./i;
-
+  
+  // High-value answer signatures (simple + robust)
+  const FEEDBACK_TRIGGERS = [
+    // Stock codes / SKU answers
+    /\bstock\s*code\b/i,
+    /\bsku\b/i,
+  
+    // Minimum order values
+    /\bminimum\s+order\b/i,
+    /\b£\s*\d+/i,
+  
+    // Invoices
+    /\binvoice\b/i,
+    /Invoice\s+History/i,
+  
+    // Delivery / tracking
+    /\btracking\b/i,
+    /\border\s+confirmation\s+email\b/i,
+    /\bdelivery\b/i,
+  
+    // Keeleco / sustainability
+    /\bkeeleco\b/i,
+    /\brecycled\b/i,
+  
+    // Production / where made
+    /\bproduced\b/i,
+    /\bmanufactur/i
+  ];
+  
   function shouldOfferFeedback(who, text) {
     if (who !== "Keelie") return false;
-    return FALLBACK_TRIGGER_RE.test(String(text || ""));
+    const t = String(text || "");
+    if (FALLBACK_TRIGGER_RE.test(t)) return true;
+    return FEEDBACK_TRIGGERS.some(rx => rx.test(t));
   }
-
+  
   function attachFeedback(rowEl, originalText) {
     if (rowEl.querySelector(".keelie-feedback")) return;
 
