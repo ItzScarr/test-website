@@ -259,3 +259,7 @@
   text-underline-offset: 3px;
 }
 .keelie-bubble a:hover{ opacity: .85; }
+.keelie-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}

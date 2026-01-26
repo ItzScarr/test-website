@@ -4,6 +4,11 @@ import "https://pyscript.net/releases/2024.9.2/core.js";
 const BASE_PATH = "assets/keelie";
 const CONTACT_URL = "https://www.keeltoys.com/contact-us/";
 
+const MESSAGE_COOLDOWN_MS = 1000; // 1 second
+let lastSendAt = 0;
+let cooldownTimer = null;
+
+
 // ------------------------------
 // DOM helper
 // ------------------------------
@@ -429,23 +434,47 @@ function mountWidget() {
   async function doSend() {
     hideSuggest();
 
+    const now = Date.now();
     const msg = (inputEl.value || "").trim();
     if (!msg) return;
 
-    // 🔐 Privacy prevention — stop before sending
-    if (looksLikePersonalInfo(msg)) {
-      inputEl.value = "";
-      showPrivacyWarning();
+    // ⛔ Cooldown check
+    if (now - lastSendAt < MESSAGE_COOLDOWN_MS) {
       return;
     }
 
-    if (!pythonReady || typeof window.keelieSend !== "function") {
-      addBubble("Keelie", "I’m still loading… please try again in a moment.");
-      return;
-    }
+    lastSendAt = now;
 
-    await window.keelieSend();
+    // Disable input briefly to prevent spam
+    inputEl.disabled = true;
+    inputEl.classList.add("keelie-disabled");
+
+    try {
+      // Privacy pre-check (if you added it earlier)
+      if (typeof looksLikePersonalInfo === "function" && looksLikePersonalInfo(msg)) {
+        inputEl.value = "";
+        showPrivacyWarning();
+        return;
+      }
+
+      if (!pythonReady || typeof window.keelieSend !== "function") {
+        addBubble("Keelie", "I’m still loading… please try again in a moment.");
+        return;
+      }
+
+      await window.keelieSend();
+
+    } finally {
+      // Re-enable input after cooldown
+      clearTimeout(cooldownTimer);
+      cooldownTimer = setTimeout(() => {
+        inputEl.disabled = false;
+        inputEl.focus();
+        inputEl.classList.remove("keelie-disabled");
+      }, MESSAGE_COOLDOWN_MS);
+    }
   }
+
 
   sendBtn.addEventListener("click", doSend);
 
