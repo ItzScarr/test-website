@@ -198,7 +198,7 @@ function addBubble(who, text) {
     row.appendChild(bubble);
     // Offer quick feedback on fallback answers only
     if (shouldOfferFeedback(who, text)) {
-      attachFeedback(row, text);
+      attachFeedback(bubble, text);
     }
     chatEl.appendChild(row);
     chatEl.scrollTop = chatEl.scrollHeight;
