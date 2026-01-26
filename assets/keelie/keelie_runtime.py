@@ -1,3 +1,5 @@
+# File: assets/keelie/keelie_runtime.py
+
 import re
 import random
 import asyncio
@@ -36,523 +38,76 @@ PRODUCTION_INFO = (
 KEELECO_OVERVIEW = (
     "Keeleco® is our eco-focused soft toy range made using **100% recycled polyester**.\n\n"
     "Key facts:\n"
-    "• The outer plush and inner fibre fill are made from **recycled plastic waste**.\n"
-    "• As a guide, around **10 recycled 500ml bottles** can produce enough fibre for an **18cm** toy.\n"
-    "• Our Keel logo + hangtags use **FSC card** and are attached with **cotton**.\n"
-    "• Shipping cartons are recycled and sealed with **paper tape**.\n"
-    "• Keeleco is made in an **ethically audited** factory.\n\n"
-    "If you tell me which Keeleco sub-range you mean (e.g. *Keeleco Dinosaurs*), I can share details."
+    "• The outer plush fabric is made from recycled plastic bottles\n"
+    "• The stuffing is made from recycled polyester\n"
+    "• Our factory uses solar power where possible\n"
+    "• We reduce packaging and use FSC-certified materials where applicable\n\n"
+    "If you tell me which Keeleco item you’re looking at, I can help further."
 )
 
 # =========================
-# Global state
+# Stock codes
 # =========================
+STOCK_ROWS: List[Dict] = []
 PENDING_STOCK_LOOKUP = False
-STOCK_ROWS: List[Dict[str, str]] = []  # loaded from JS Excel conversion
 
 # =========================
-# Helpers
+# Ranges / collections (simple)
 # =========================
-def clean_text(text: str) -> str:
-    text = (text or "").lower()
-    text = re.sub(r"[^a-z0-9\s&-]", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-def similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, a, b).ratio()
-
-def extract_stock_code(text: str) -> Optional[str]:
-    matches = re.findall(r"\b[A-Z]{1,5}-?[A-Z]{0,5}-?\d{2,4}\b", (text or "").upper())
-    return matches[0] if matches else None
-
-def is_delivery_question(text: str) -> bool:
-    t = clean_text(text)
-    delivery_terms = ["arrive", "arrival", "delivery", "eta", "tracking", "track", "order", "dispatch", "shipped"]
-    return (("when" in t) and any(term in t for term in delivery_terms)) or any(
-        phrase in t for phrase in ["where is my order", "track my order", "order status"]
-    )
-
-def is_stock_code_request(text: str) -> bool:
-    t = clean_text(text)
-    triggers = ["product code", "stock code", "sku", "item code", "code for", "code of"]
-    return any(x in t for x in triggers)
-
-def normalize_for_product_match(text: str) -> str:
-    t = clean_text(text)
-    junk_phrases = [
-        "can you tell me", "could you tell me", "please", "what is", "whats",
-        "the product code", "product code", "stock code", "item code", "sku",
-        "code for", "code of"
-    ]
-    for p in junk_phrases:
-        t = t.replace(p, " ")
-    t = re.sub(r"\b(of|for|a|an|the|to|me|my)\b", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
-
-def is_minimum_order_question(text: str) -> bool:
-    t = clean_text(text)
-    triggers = [
-        # Core
-        "minimum order", "minimum spend", "minimum purchase",
-        "min order", "min spend", "order minimum", "minimum order price",
-
-        # Broader wording
-        "minimum value", "minimum order value", "minimum spend value",
-        "minimum order amount", "minimum spend amount",
-        "minimum basket", "minimum basket value",
-        "minimum checkout", "minimum checkout value",
-        "what is the minimum", "whats the minimum", "what's the minimum",
-        "opening order minimum", "first order minimum", "repeat order minimum",
-        "starting order", "trade minimum", "trade order minimum",
-
-        # Trade shorthand
-        "moq", "m o q", "minimum order quantity",
-    ]
-    return any(x in t for x in triggers)
-
-def is_production_question(text: str) -> bool:
-    t = clean_text(text)
-    phrases = [
-        "where are your toys produced",
-        "where are your toys made",
-        "where are your toys manufactured",
-        "where are the toys produced",
-        "where are the toys made",
-        "where are the toys manufactured",
-        "where are they produced",
-        "where are they made",
-        "where are they manufactured",
-    ]
-    if any(p in t for p in phrases):
-        return True
-    production_words = {"produced", "made", "manufactured"}
-    return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
-
-def is_eco_question(text: str) -> bool:
-    t = clean_text(text)
-    triggers = [
-        "eco", "eco friendly", "eco-friendly",
-        "sustainable", "sustainability",
-        "environment", "environmentally friendly",
-        "recycled", "recycle", "recyclable",
-        "plastic bottles", "fsc",
-        "keeleco", "keel eco"
-    ]
-    return any(x in t for x in triggers)
-
-
-# =========================
-# Greeting detection (priority fix)
-# =========================
-def is_greeting(text: str) -> bool:
-    t = clean_text(text)
-    greetings = {
-        "hi", "hello", "hey", "hiya", "yo",
-        "good morning", "good afternoon", "good evening"
-    }
-    # Exact match (e.g. "hi") OR starts-with (e.g. "hi there", "hello keelie")
-    return (t in greetings) or any(t.startswith(g + " ") for g in greetings)
-
-def minimum_order_response() -> str:
-    return (
-        "Our minimum order values are:\n"
-        f"• £{MIN_ORDER_FIRST} for first-time buyers\n"
-        f"• £{MIN_ORDER_REPEAT} for repeat buyers\n\n"
-        "If you’re unsure whether you qualify as a first-time or repeat buyer, "
-        "our customer service team can help:\n"
-        f"{CUSTOMER_SERVICE_URL}"
-    )
-
-# =========================
-# Load stock rows from JS (Excel conversion)
-# =========================
-async def load_stock_rows_from_js():
-    global STOCK_ROWS
-    try:
-        # Wait for JS promise to finish
-        if hasattr(window, "keelieStockReady"):
-            await window.keelieStockReady
-
-        if hasattr(window, "keelieStockRows"):
-            STOCK_ROWS = [dict(r) for r in window.keelieStockRows.to_py()]
-        else:
-            STOCK_ROWS = []
-    except Exception:
-        STOCK_ROWS = []
-
-def lookup_stock_code(user_text: str) -> str:
-    if not STOCK_ROWS:
-        return (
-            "I can’t access stock codes right now (stock_codes.xlsx may be missing or unreadable). "
-            f"Please contact customer service here:\n{CUSTOMER_SERVICE_URL}"
-        )
-
-    query = normalize_for_product_match(user_text)
-
-    best_row = None
-    best_score = 0.0
-    for row in STOCK_ROWS:
-        name = str(row.get("product_name", "")).lower().strip()
-        score = similarity(query, name)
-        if score > best_score:
-            best_score = score
-            best_row = row
-
-    if best_score < 0.6 or not best_row:
-        return "I’m not sure which product you mean. Could you please provide the product name?"
-
-    product = str(best_row.get("product_name", "")).strip().title()
-    code = str(best_row.get("stock_code", "")).strip()
-    return f"The stock code for **{product}** is **{code}**."
-
-def lookup_product_by_code(code: str) -> Optional[str]:
-    if not STOCK_ROWS:
-        return None
-    code = code.upper().strip()
-    for row in STOCK_ROWS:
-        c = str(row.get("stock_code", "")).upper().strip()
-        if c == code:
-            product = str(row.get("product_name", "")).strip().title()
-            return f"The product with stock code **{code}** is **{product}**."
-    return None
-
-# =========================
-# Collections / ranges (from Keel Toys menu)
-# =========================
-# Notes:
-# - Keeleco sub-ranges share the same recycled-material story.
-# - For non-Keeleco ranges, we describe them accurately but conservatively (no invented claims).
-COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
-    # ---- Keeleco family ----
-    "keeleco": {
-        "title": "Keeleco®",
-        "facts": [
-            "Eco-focused range made from **100% recycled polyester** (plush + fibre fill).",
-            "Around **10 recycled 500ml bottles** can produce enough fibre for an **18cm** toy (guide figure).",
-            "**FSC card** hangtags attached with **cotton**.",
-            "Recycled cartons sealed with **paper tape**.",
-            "Made in an **ethically audited** factory."
-        ],
-    },
-    "keeleco adoptable world": {
-        "title": "Keeleco Adoptable World",
-        "facts": [
-            "Part of the Keeleco® family: made using **100% recycled polyester**.",
-            "Designed as a character-led animal collection with the Keeleco eco story highlighted on hangtags."
-        ],
-    },
-    "keeleco arctic & sealife": {
-        "title": "Keeleco Arctic & Sealife",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Arctic and sea-life themed characters with Keeleco eco labelling."
-        ],
-    },
-    "keeleco baby": {
-        "title": "Keeleco Baby",
-        "facts": [
-            "Keeleco® baby-themed collection made using **100% recycled polyester**.",
-            "Designed for gentle gifting and early-years appeal while keeping the Keeleco eco materials story."
-        ],
-    },
-    "keeleco botanical garden": {
-        "title": "Keeleco Botanical Garden",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Botanical/plant-inspired characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco british wildlife & farm": {
-        "title": "Keeleco British Wildlife & Farm",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "British wildlife and farm themed characters, with Keeleco eco labelling and FSC hangtags."
-        ],
-    },
-    "keeleco collectables": {
-        "title": "Keeleco Collectables",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Collectable-style characters with the Keeleco eco materials story."
-        ],
-    },
-    "keeleco dinosaurs": {
-        "title": "Keeleco Dinosaurs",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Dinosaur-themed characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco enchanted world": {
-        "title": "Keeleco Enchanted World",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Fantasy-inspired characters with the Keeleco eco labelling."
-        ],
-    },
-    "keeleco handpuppets": {
-        "title": "Keeleco Handpuppets",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Hand puppet play format within the Keeleco eco range."
-        ],
-    },
-    "keeleco jungle cats": {
-        "title": "Keeleco Jungle Cats",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Big-cat themed characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco monkeys & apes": {
-        "title": "Keeleco Monkeys & Apes",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Monkey and ape themed characters; Keeleco eco story shown on hangtags."
-        ],
-    },
-    "keeleco pets": {
-        "title": "Keeleco Pets",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Pet-themed characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco pink": {
-        "title": "Keeleco Pink",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "A colour-led Keeleco selection with the same eco materials story."
-        ],
-    },
-    "keeleco snackies": {
-        "title": "Keeleco Snackies",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Food/snack-inspired characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco teddies": {
-        "title": "Keeleco Teddies",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Teddy-led collection with the Keeleco eco materials story."
-        ],
-    },
-    "keeleco wild": {
-        "title": "Keeleco Wild",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Wildlife-themed characters within the Keeleco eco range."
-        ],
-    },
-
-    # ---- Other site collections ----
-    "love to hug": {
-        "title": "Love To Hug",
-        "facts": [
-            "A Keel Toys collection focused on soft, huggable plush characters.",
-            "If you tell me the character/size, I can help check stock codes (if available in the Excel)."
-        ],
-    },
-    "motsu": {
-        "title": "Motsu",
-        "facts": [
-            "A Keel Toys character collection with its own distinct style and designs.",
-            "If you share the exact product name, I can help find the stock code (if listed)."
-        ],
-    },
-    "pippins": {
-        "title": "Pippins",
-        "facts": [
-            "A Keel Toys collection featuring cute character-led soft toys.",
-            "If you share the product name, I can look up the stock code (if present in your Excel)."
-        ],
-    },
-    "pugsley & friends": {
-        "title": "Pugsley & Friends",
-        "facts": [
-            "A Keel Toys character collection in the ‘Friends’ style range.",
-            "If you share the specific product name, I can help locate the stock code (if listed)."
-        ],
-    },
-    "seasonal": {
-        "title": "Seasonal",
-        "facts": [
-            "Seasonal collections cover time-of-year themes (e.g., holiday gifting and seasonal characters).",
-            "If you tell me which season/character, I can help with stock codes if they’re in your Excel."
-        ],
-    },
-    "signature cuddle puppies": {
-        "title": "Signature Cuddle Puppies",
-        "facts": [
-            "A Signature collection focused on puppy characters in a ‘cuddle’ style.",
-            "Share a product name/size and I can help identify the stock code (if listed)."
-        ],
-    },
-    "signature cuddle teddies": {
-        "title": "Signature Cuddle Teddies",
-        "facts": [
-            "A Signature collection focused on teddy characters in a ‘cuddle’ style.",
-            "Share a product name/size and I can help identify the stock code (if listed)."
-        ],
-    },
-    "signature cuddle wild": {
-        "title": "Signature Cuddle Wild",
-        "facts": [
-            "A Signature collection featuring wild-animal characters in a ‘cuddle’ style.",
-            "Share a product name/size and I can help identify the stock code (if listed)."
-        ],
-    },
-    "signature forever puppies": {
-        "title": "Signature Forever Puppies",
-        "facts": [
-            "A Signature collection focused on puppy characters in the ‘Forever Puppies’ line.",
-            "Share a product name/size and I can help identify the stock code (if listed)."
-        ],
-    },
-    "souvenir": {
-        "title": "Souvenir",
-        "facts": [
-            "A collection designed for gift/souvenir-style plush items.",
-            "If you provide the product name or a code, I can help confirm stock code details (if listed)."
-        ],
-    },
-
-    # ---- “Products” group items that appear as collections in the site menu ----
-    "accessories": {
-        "title": "Accessories",
-        "facts": [
-            "A product category for Keel Toys accessories.",
-            "If you provide the product name, I can try to find the stock code (if listed)."
-        ],
-    },
-    "bag charms": {
-        "title": "Bag Charms",
-        "facts": [
-            "A product category featuring bag charm items.",
-            "If you provide the product name, I can try to find the stock code (if listed)."
-        ],
-    },
-    "bakery": {
-        "title": "Bakery",
-        "facts": [
-            "A product category featuring bakery-themed items.",
-            "If you provide the product name, I can try to find the stock code (if listed)."
-        ],
-    },
-    "bobballs": {
-        "title": "Bobballs",
-        "facts": [
-            "A product category under Keel Toys’ product listings.",
-            "If you provide the product name, I can try to find the stock code (if listed)."
-        ],
-    },
-    "cafe cute": {
-        "title": "Cafe Cute",
-        "facts": [
-            "A product category under Keel Toys’ product listings.",
-            "If you provide the product name, I can try to find the stock code (if listed)."
-        ],
-    },
+COLLECTIONS = {
+    "keeleco": (
+        "Keeleco® is our eco-focused range made with **100% recycled polyester**.\n"
+        "If you tell me a product name or size, I can help find the stock code."
+    ),
+    "keel eco": (
+        "Keeleco® is our eco-focused range made with **100% recycled polyester**.\n"
+        "If you tell me a product name or size, I can help find the stock code."
+    ),
+    "keel toys": (
+        "Keel Toys offers a wide range of soft toys and gift items.\n"
+        "Tell me what you’re looking for (product name / range / size) and I’ll try to help."
+    ),
 }
 
-def detect_collection(cleaned_text: str) -> Optional[str]:
-    # Try to match the longest keys first (so "signature cuddle puppies" wins over "signature")
-    keys = sorted(COLLECTION_FACTS.keys(), key=len, reverse=True)
-    for k in keys:
-        if k in cleaned_text:
-            return k
-    return None
+# =========================
+# Simple FAQ fallback
+# =========================
+FAQ = [
+    (
+        ["opening hours", "open hours", "hours", "opening time", "what time are you open"],
+        "Our opening hours can vary by department. Please contact customer service for the latest details:\n"
+        f"{CUSTOMER_SERVICE_URL}",
+    ),
+    (
+        ["returns", "return", "refund", "send back"],
+        "For returns and refunds, please contact customer service so they can advise on the correct process:\n"
+        f"{CUSTOMER_SERVICE_URL}",
+    ),
+    (
+        ["contact", "customer service", "support", "speak to someone", "human"],
+        f"Of course! 😊 You can contact Keel Toys customer service here:\n{CUSTOMER_SERVICE_URL}",
+    ),
+]
 
-def collections_overview() -> str:
-    # Provide a tidy overview list (grouped)
-    kee_sub = [
-        "Keeleco Adoptable World",
-        "Keeleco Arctic & Sealife",
-        "Keeleco Baby",
-        "Keeleco Botanical Garden",
-        "Keeleco British Wildlife & Farm",
-        "Keeleco Collectables",
-        "Keeleco Dinosaurs",
-        "Keeleco Enchanted World",
-        "Keeleco Handpuppets",
-        "Keeleco Jungle Cats",
-        "Keeleco Monkeys & Apes",
-        "Keeleco Pets",
-        "Keeleco Pink",
-        "Keeleco Snackies",
-        "Keeleco Teddies",
-        "Keeleco Wild",
-    ]
-    others = [
-        "Love To Hug",
-        "Motsu",
-        "Pippins",
-        "Pugsley & Friends",
-        "Seasonal",
-        "Signature Cuddle Puppies",
-        "Signature Cuddle Teddies",
-        "Signature Cuddle Wild",
-        "Signature Forever Puppies",
-        "Souvenir",
-    ]
-    return (
-        "Here are our main collections/ranges:\n\n"
-        "Keeleco® sub-ranges:\n"
-        + "\n".join([f"• {x}" for x in kee_sub]) +
-        "\n\nOther collections:\n"
-        + "\n".join([f"• {x}" for x in others]) +
-        "\n\nTell me which one you’re interested in and I’ll share some facts about it."
-    )
-
-def collection_reply(cleaned_text: str) -> str:
-    key = detect_collection(cleaned_text)
-    if not key:
-        return collections_overview()
-
-    info = COLLECTION_FACTS[key]
-    facts = "\n".join([f"• {f}" for f in info["facts"]])
-
-    # Special: if they ask generally about Keeleco eco/recycled, give the richer overview text
-    if key == "keeleco" and is_eco_question(cleaned_text):
-        return KEELECO_OVERVIEW
-
-    return f"Here’s an overview of **{info['title']}**:\n{facts}"
+FALLBACK = (
+    "I’m not totally sure, but I can help if you tell me a little more.\n\n"
+    "Try asking about:\n"
+    "• minimum order values\n"
+    "• stock codes / SKUs\n"
+    "• delivery / tracking\n"
+    "• Keeleco® sustainability\n"
+    f"\nOr contact customer service here:\n{CUSTOMER_SERVICE_URL}"
+)
 
 # =========================
-# FAQ (simple similarity)
-# =========================
-FAQ = {
-    "tell me about keel toys":
-        "Keel Toys is a family-run UK soft toy company founded in 1947. Since 1988, we’ve focused on developing our own-brand soft toys.",
-    "what are your opening hours":
-        "The Keel Toys office is open Monday to Friday, 9:00am–5:00pm (UK time).",
-    "are keel toys toys safe":
-        "All Keel Toys products are designed and tested to meet UK and EU safety standards.",
-}
-
-def best_faq_answer(user_text: str, threshold: float = 0.55) -> Optional[str]:
-    q = clean_text(user_text)
-    best = None
-    best_score = 0.0
-    for k, v in FAQ.items():
-        s = similarity(q, k)
-        if s > best_score:
-            best_score = s
-            best = v
-    return best if best_score >= threshold else None
-
-# =========================
-# Intent system (priority-based)
+# Intent model (simple)
 # =========================
 @dataclass
 class Intent:
     priority: int
     keywords: Dict[str, int]
     responses: List[str]
+
 
 INTENTS = {
     "customer_service": Intent(
@@ -598,7 +153,7 @@ INTENTS = {
             "good morning": 2, "good afternoon": 2, "good evening": 2
         },
         responses=[
-            f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
+            f"Hello! 👋 I'm {BOT_NAME}. Ask me about stock codes, minimum order values, Keeleco®, or delivery & invoices."
         ],
     ),
     "goodbye": Intent(
@@ -611,53 +166,277 @@ INTENTS = {
         ],
     ),
     "invoice_copy": Intent(
-    priority=6,
-    keywords={
-        "invoice": 5,
-        "last invoice": 7,
-        "copy of my invoice": 7,
-        "invoice copy": 6,
-        "invoice history": 6,
-        "past invoice": 6,
-        "order invoice": 5,
-        "download invoice": 6
-    },
-    responses=[
-        "You can access copies of your invoices by logging in to your account, then navigating to:\n\n"
-        "**Account > My Orders > Invoice History**"
-    ],
-),
-
+        priority=6,
+        keywords={
+            "invoice": 5,
+            "last invoice": 7,
+            "copy of my invoice": 7,
+            "invoice copy": 6,
+            "invoice history": 6,
+            "past invoice": 6,
+            "order invoice": 6,
+            "download invoice": 7,
+        },
+        responses=[
+            "To request a copy invoice, please contact customer service and provide your order details:\n"
+            f"{CUSTOMER_SERVICE_URL}"
+        ],
+    ),
 }
 
-FALLBACK = (
-    "I’m not able to help with that just now. "
-    f"Please contact Keel Toys customer service here:\n{CUSTOMER_SERVICE_URL}"
-)
+# =========================
+# Text utils
+# =========================
+def clean_text(text: str) -> str:
+    t = (text or "").strip().lower()
+    t = re.sub(r"\s+", " ", t)
+    return t
 
-def detect_intent(cleaned_text: str) -> Optional[str]:
-    best_intent = None
-    best_score = 0
-    for name, intent in INTENTS.items():
-        score = sum(weight for phrase, weight in intent.keywords.items() if phrase in cleaned_text)
-        score *= intent.priority
-        if score > best_score:
-            best_score = score
-            best_intent = name
-    return best_intent if best_score > 0 else None
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
+
+def extract_stock_code(text: str) -> Optional[str]:
+    if not text:
+        return None
+    m = re.search(r"\b[A-Z]{2}\d{3,6}\b", text.upper())
+    return m.group(0) if m else None
 
 # =========================
-# Conversation handling
+# Heuristics / classifiers
+# =========================
+def is_delivery_question(text: str) -> bool:
+    t = clean_text(text)
+    triggers = [
+        "delivery", "deliver", "arrive", "arrival", "eta",
+        "tracking", "track", "dispatch", "shipped", "shipment",
+        "where is my order", "order status"
+    ]
+    return any(x in t for x in triggers)
+
+def is_stock_code_request(text: str) -> bool:
+    t = clean_text(text)
+    triggers = [
+        "stock code", "stockcode", "sku", "product code", "product code",
+        "code for", "item code", "what is the code", "what's the code"
+    ]
+    return any(x in t for x in triggers)
+
+def normalize_for_product_match(text: str) -> str:
+    t = clean_text(text)
+    t = re.sub(r"[^a-z0-9\s]", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+def is_minimum_order_question(text: str) -> bool:
+    t = clean_text(text)
+    triggers = [
+        "minimum order", "min order", "minimum value", "minimum spend",
+        "moq", "what is the minimum", "minimum order value"
+    ]
+    return any(x in t for x in triggers)
+
+def is_production_question(text: str) -> bool:
+    t = clean_text(text)
+    phrases = [
+        "where are your toys produced",
+        "where are your toys made",
+        "where are your toys manufactured",
+        "where are the toys produced",
+        "where are the toys made",
+        "where are the toys manufactured",
+        "where are they produced",
+        "where are they made",
+        "where are they manufactured",
+    ]
+    if any(p in t for p in phrases):
+        return True
+    production_words = {"produced", "made", "manufactured"}
+    return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
+
+def is_how_its_made_question(text: str) -> bool:
+    t = clean_text(text)
+    triggers = [
+        "how do you make",
+        "how do you make the product",
+        "how is it made",
+        "how it's made",
+        "how its made",
+        "how do you manufacture",
+        "how is it manufactured",
+        "manufacturing process",
+        "production process",
+        "how do you produce",
+        "how is it produced",
+        "made from",
+        "materials used",
+        "what is it made of",
+        "what's it made of",
+        "how are your toys made",
+        "how do you make your toys",
+    ]
+    return any(x in t for x in triggers)
+
+def how_its_made_response(user_text: str) -> str:
+    t = clean_text(user_text)
+    if any(x in t for x in ["keeleco", "recycled", "sustainable", "sustainability", "eco"]):
+        return (
+            "**How Keeleco® products are made (high level):**\n"
+            "• Materials are chosen with sustainability in mind (including recycled content where applicable).\n"
+            "• Fabrics are cut into panels, then stitched and assembled.\n"
+            "• Stuffing is filled, products are shaped, and seams are closed securely.\n"
+            "• Items go through **quality checks** (stitching, finish, and safety-related components).\n"
+            "• Packaging and labelling are applied before dispatch.\n\n"
+            "If you tell me the **product name or stock code**, I can be more specific about materials and construction."
+        )
+
+    return (
+        "**How our plush products are made (high level):**\n"
+        "• **Design & prototyping:** artwork, patterns, and sample development.\n"
+        "• **Material selection:** outer fabric, threads, trims, and stuffing are chosen.\n"
+        "• **Cut & sew:** fabric panels are cut, embroidered/printed if needed, then stitched together.\n"
+        "• **Stuffing & shaping:** filling is added and the product is shaped and finished.\n"
+        "• **Quality & safety checks:** stitching strength, component security, and overall finish are checked.\n"
+        "• **Packaging:** labels/packaging are applied before shipment.\n\n"
+        "If you share the **product name / size / stock code**, I can explain the typical materials and any special features."
+    )
+
+def is_eco_question(text: str) -> bool:
+    t = clean_text(text)
+    triggers = [
+        "eco", "eco friendly", "sustainable", "sustainability", "recycled", "recycle",
+        "environment", "plastic bottles", "keeleco"
+    ]
+    return any(x in t for x in triggers)
+
+# =========================
+# Responses
+# =========================
+def minimum_order_response() -> str:
+    return (
+        "**Minimum order values:**\n"
+        f"• First order: **£{MIN_ORDER_FIRST}**\n"
+        f"• Repeat orders: **£{MIN_ORDER_REPEAT}**\n\n"
+        "If you’d like, tell me if this is your first order or a repeat and I can confirm."
+    )
+
+# =========================
+# Stock code lookups
+# =========================
+async def load_stock_rows_from_js():
+    global STOCK_ROWS
+    try:
+        # Wait for JS promise to finish
+        if hasattr(window, "keelieStockReady"):
+            await window.keelieStockReady
+
+        if hasattr(window, "keelieStockRows"):
+            STOCK_ROWS = [dict(r) for r in window.keelieStockRows.to_py()]
+        else:
+            STOCK_ROWS = []
+    except Exception:
+        STOCK_ROWS = []
+
+def lookup_stock_code(user_text: str) -> str:
+    if not STOCK_ROWS:
+        return (
+            "I can’t access stock codes right now (stock_codes.xlsx may be missing or unreadable). "
+            f"Please contact customer service here:\n{CUSTOMER_SERVICE_URL}"
+        )
+
+    query = normalize_for_product_match(user_text)
+
+    best_row = None
+    best_score = 0.0
+    for row in STOCK_ROWS:
+        name = str(row.get("product_name", "")).lower().strip()
+        score = similarity(query, name)
+        if score > best_score:
+            best_score = score
+            best_row = row
+
+    if best_score < 0.6 or not best_row:
+        return "I’m not sure which product you mean. Could you please provide the product name?"
+
+    product = str(best_row.get("product_name", "")).strip()
+    code = str(best_row.get("stock_code", "")).strip()
+
+    if not code:
+        return f"I found **{product}**, but I don’t have a stock code listed for it."
+    return f"The stock code for **{product}** is **{code}**."
+
+def lookup_product_by_code(code: str) -> Optional[str]:
+    if not STOCK_ROWS:
+        return None
+    c = (code or "").strip().upper()
+    for row in STOCK_ROWS:
+        if str(row.get("stock_code", "")).strip().upper() == c:
+            name = str(row.get("product_name", "")).strip()
+            return f"Stock code **{c}** is **{name}**."
+    return None
+
+# =========================
+# Collections helpers
+# =========================
+def detect_collection(cleaned_text: str) -> Optional[str]:
+    for k in COLLECTIONS.keys():
+        if k in cleaned_text:
+            return k
+    return None
+
+def collections_overview() -> str:
+    names = sorted({k for k in COLLECTIONS.keys()})
+    return (
+        "Here are some ranges you can ask about:\n"
+        + "\n".join([f"• {n.title()}" for n in names])
+        + "\n\nIf you tell me which range (and the product name/size), I can help further."
+    )
+
+def collection_reply(cleaned_text: str) -> str:
+    key = detect_collection(cleaned_text)
+    if not key:
+        return collections_overview()
+    return COLLECTIONS.get(key, collections_overview())
+
+# =========================
+# FAQ matching
+# =========================
+def best_faq_answer(cleaned_text: str) -> Optional[str]:
+    for triggers, answer in FAQ:
+        if any(t in cleaned_text for t in triggers):
+            return answer
+    return None
+
+# =========================
+# Intent detection
+# =========================
+def detect_intent(cleaned_text: str) -> Optional[str]:
+    best = None
+    best_score = 0
+    best_priority = -1
+
+    for name, intent in INTENTS.items():
+        score = 0
+        for kw, weight in intent.keywords.items():
+            if kw in cleaned_text:
+                score += weight
+
+        if score <= 0:
+            continue
+
+        if intent.priority > best_priority or (intent.priority == best_priority and score > best_score):
+            best = name
+            best_score = score
+            best_priority = intent.priority
+
+    return best
+
+# =========================
+# Main reply
 # =========================
 def keelie_reply(user_input: str) -> str:
     global PENDING_STOCK_LOOKUP
 
     cleaned = clean_text(user_input)
-
-    # ✅ Greeting MUST run first
-    if is_greeting(user_input):
-        PENDING_STOCK_LOOKUP = False
-        return random.choice(INTENTS["greeting"].responses)
 
     # ✅ Collections / ranges trigger (runs early)
     if any(x in cleaned for x in ["range", "ranges", "collection", "collections", "our collections"]):
@@ -678,6 +457,11 @@ def keelie_reply(user_input: str) -> str:
     if is_minimum_order_question(user_input):
         PENDING_STOCK_LOOKUP = False
         return minimum_order_response()
+
+    # ✅ How it's made / manufacturing process override
+    if is_how_its_made_question(user_input):
+        PENDING_STOCK_LOOKUP = False
+        return how_its_made_response(user_input)
 
     # ✅ Manufacturing location override
     if is_production_question(user_input):
@@ -754,21 +538,16 @@ async def send_message():
     if hasattr(window, "keelieShowStatus"):
         window.keelieShowStatus("Keelie is typing…")
 
-    base = 0.35
-    per_char = min(len(msg) * 0.01, 1.0)
-    await asyncio.sleep(base + per_char)
+    await asyncio.sleep(random.uniform(0.35, 0.7))
 
-    # Remove status bubble
     if hasattr(window, "keelieClearStatus"):
         window.keelieClearStatus()
 
     reply = keelie_reply(msg)
+    window.keelieAddBubble(BOT_NAME, reply)
 
-    window.keelieAddBubble("Keelie", reply)
-
-
-async def boot():
-    await load_stock_rows_from_js()
+def boot():
     window.keelieSend = send_message
+    asyncio.create_task(load_stock_rows_from_js())
 
-await boot()
+boot()
