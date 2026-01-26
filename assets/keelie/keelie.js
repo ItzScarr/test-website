@@ -12,6 +12,36 @@ function el(html) {
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
+// ==============================
+// Privacy guard (pre-send)
+// ==============================
+function looksLikePersonalInfo(text) {
+  if (!text) return false;
+
+  // Email
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text)) return true;
+
+  // Phone (loose)
+  if (/(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d/.test(text))
+    return true;
+
+  // Order / invoice refs (only if long digits + cue word)
+  if (/\b(order|invoice|account|ref|reference|tracking|awb|consignment)\b/i.test(text)
+      && /\b\d{6,}\b/.test(text))
+    return true;
+
+  return false;
+}
+
+function showPrivacyWarning() {
+  window.keelieAddBubble(
+    "Keelie",
+    "For your privacy, please don’t share personal or account details here "
+    + "(like email addresses, phone numbers, or order/invoice references).\n\n"
+    + "Our customer service team can help securely via the Contact page."
+  );
+}
+
 
 // ------------------------------
 // Formatting helpers
@@ -373,10 +403,21 @@ function mountWidget() {
   async function doSend() {
     hideSuggest();
 
+    const msg = (inputEl.value || "").trim();
+    if (!msg) return;
+
+    // 🔐 Privacy prevention — stop before sending
+    if (looksLikePersonalInfo(msg)) {
+      inputEl.value = "";
+      showPrivacyWarning();
+      return;
+    }
+
     if (!pythonReady || typeof window.keelieSend !== "function") {
       addBubble("Keelie", "I’m still loading… please try again in a moment.");
       return;
     }
+
     await window.keelieSend();
   }
 
