@@ -252,3 +252,10 @@
   .keelie-launcher{ right:12px; bottom:12px; }
   .keelie-suggest{ bottom:62px; }
 }
+.keelie-bubble a{
+  color: var(--keelie-brand-dark);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.keelie-bubble a:hover{ opacity: .85; }
