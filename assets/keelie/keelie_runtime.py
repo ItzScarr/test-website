@@ -592,7 +592,7 @@ INTENTS = {
             "agent": 4, "human": 4, "contact": 3
         },
         responses=[
-            "You can reach Keel Toys customer service here:\n"
+            "Please contact Keel Toys customer service here:\n"
             f"{CUSTOMER_SERVICE_URL}"
         ],
     ),
@@ -617,8 +617,8 @@ INTENTS = {
             "shipped": 4,
         },
         responses=[
-            "For delivery updates, please check your order confirmation email. "
-            "It includes your estimated delivery date and tracking details if available."
+            "To check your delivery status, please refer to your order confirmation email. "
+            "It includes your estimated delivery date and any available tracking information."
         ],
     ),
     "greeting": Intent(
@@ -628,7 +628,7 @@ INTENTS = {
             "good morning": 2, "good afternoon": 2, "good evening": 2
         },
         responses=[
-            f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
+            f"Hello! 👋 I’m {BOT_NAME}, the {COMPANY_NAME} assistant. How can I help you today?"
         ],
     ),
     "goodbye": Intent(
@@ -637,7 +637,7 @@ INTENTS = {
             "bye": 2, "goodbye": 2, "thanks": 1, "thank you": 1, "thx": 1, "cheers": 1
         },
         responses=[
-            f"Thanks for chatting with {COMPANY_NAME}! Have a lovely day 😊"
+            f"Thanks for chatting with {COMPANY_NAME}. Have a great day."
         ],
     ),
     "invoice_copy": Intent(
@@ -653,7 +653,7 @@ INTENTS = {
         "download invoice": 6
     },
     responses=[
-        "You can access copies of your invoices by logging in to your account, then navigating to:\n\n"
+        "Copies of your invoices are available by logging in to your account and navigating to:\n\n"
         "**Account > My Orders > Invoice History**"
     ],
 ),
@@ -661,14 +661,26 @@ INTENTS = {
 }
 
 FALLBACK = (
-    "I’m sorry — I can’t help with that via this chat.\n\n"
-    "I can help with:\n"
-    "• Minimum order values\n"
-    "• Stock codes / SKUs\n"
-    "• Keeleco® recycled materials\n"
-    "• Where our toys are made\n"
-    "• Delivery, tracking and invoices\n\n"
-    "If you still need help, please contact Keel Toys customer service here:\n"
+    "I’m not able to help with that just now.
+
+"
+    "I can help with:
+"
+    "• **Minimum order values**
+"
+    "• **Stock codes / SKUs**
+"
+    "• **Keeleco® recycled materials & sustainability**
+"
+    "• **Where our toys are made**
+"
+    "• **Delivery & order questions**
+"
+    "• **Invoices**
+
+"
+    "If you need further help, please contact customer service here:
+"
     f"{CUSTOMER_SERVICE_URL}"
 )
 
