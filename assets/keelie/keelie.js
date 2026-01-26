@@ -12,7 +12,7 @@ function el(html) {
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
-
+console.log("Feedback:", helpful, originalText);
 // ==============================
 // Safe formatting helpers
 // ==============================
