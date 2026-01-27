@@ -214,20 +214,37 @@ function mountWidget() {
       : '<span class="keelie-feedback-thanks">Thanks — noted.</span>';
 
     // Optional: store locally (no server)
-    try {
-      const key = "keelie_feedback";
-      const data = JSON.parse(localStorage.getItem(key)) || {
-        helpful: 0,
-        notHelpful: 0
-      };
+try {
+  const key = "keelie_feedback";
+  let stored = JSON.parse(localStorage.getItem(key));
 
-      if (helpful) data.helpful += 1;
-      else data.notHelpful += 1;
+  // If nothing exists, start fresh
+  if (!stored) {
+    stored = { helpful: 0, notHelpful: 0 };
+  }
 
-      localStorage.setItem(key, JSON.stringify(data));
+      // 🔁 Migration: if old array format exists, convert it
+      if (Array.isArray(stored)) {
+        const converted = { helpful: 0, notHelpful: 0 };
+        stored.forEach(entry => {
+          if (entry && entry.helpful === true) converted.helpful += 1;
+          if (entry && entry.helpful === false) converted.notHelpful += 1;
+        });
+        stored = converted;
+      }
+
+      // Increment counts
+      if (helpful) {
+        stored.helpful += 1;
+      } else {
+        stored.notHelpful += 1;
+      }
+
+      localStorage.setItem(key, JSON.stringify(stored));
     } catch (e) {
-      // ignore
+      // ignore storage errors safely
     }
+
   };
 
   yesBtn.addEventListener("click", () => acknowledge(true));
