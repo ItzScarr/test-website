@@ -214,36 +214,29 @@ function mountWidget() {
       : '<span class="keelie-feedback-thanks">Thanks — noted.</span>';
 
     // Optional: store locally (no server)
-try {
-  const key = "keelie_feedback";
-  let stored = JSON.parse(localStorage.getItem(key));
+    try {
+      const key = "keelie_feedback";
+      let stored = JSON.parse(localStorage.getItem(key));
 
-  // If nothing exists, start fresh
-  if (!stored) {
-    stored = { helpful: 0, notHelpful: 0 };
-  }
+      // Start fresh if missing
+      if (!stored) stored = { helpful: 0, notHelpful: 0 };
 
-      // 🔁 Migration: if old array format exists, convert it
+      // Migrate old array format -> counts object
       if (Array.isArray(stored)) {
-        const converted = { helpful: 0, notHelpful: 0 };
-        stored.forEach(entry => {
-          if (entry && entry.helpful === true) converted.helpful += 1;
-          if (entry && entry.helpful === false) converted.notHelpful += 1;
+        const counts = { helpful: 0, notHelpful: 0 };
+        stored.forEach(e => {
+          if (e && e.helpful === true) counts.helpful += 1;
+          if (e && e.helpful === false) counts.notHelpful += 1;
         });
-        stored = converted;
+        stored = counts;
       }
 
-      // Increment counts
-      if (helpful) {
-        stored.helpful += 1;
-      } else {
-        stored.notHelpful += 1;
-      }
+      // Increment
+      if (helpful) stored.helpful += 1;
+      else stored.notHelpful += 1;
 
       localStorage.setItem(key, JSON.stringify(stored));
-    } catch (e) {
-      // ignore storage errors safely
-    }
+    } catch (e) {}
 
   };
 
