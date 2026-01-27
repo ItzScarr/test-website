@@ -182,59 +182,58 @@ function mountWidget() {
   }
 
   function attachFeedback(bubbleEl, originalText) {
-    if (!bubbleEl || bubbleEl.querySelector(".keelie-feedback")) return;
+  if (!bubbleEl || bubbleEl.querySelector(".keelie-feedback")) return;
 
-    const row = document.createElement("div");
-    row.className = "keelie-feedback";
+  const row = document.createElement("div");
+  row.className = "keelie-feedback";
 
-    const label = document.createElement("span");
-    label.className = "keelie-feedback-label";
-    label.textContent = "Helpful?";
+  const label = document.createElement("span");
+  label.className = "keelie-feedback-label";
+  label.textContent = "Helpful?";
 
-    const yesBtn = document.createElement("button");
-    yesBtn.type = "button";
-    yesBtn.setAttribute("aria-label", "This was helpful");
-    yesBtn.textContent = "👍";
+  const yesBtn = document.createElement("button");
+  yesBtn.type = "button";
+  yesBtn.setAttribute("aria-label", "This was helpful");
+  yesBtn.textContent = "👍";
 
-    const noBtn = document.createElement("button");
-    noBtn.type = "button";
-    noBtn.setAttribute("aria-label", "This was not helpful");
-    noBtn.textContent = "👎";
+  const noBtn = document.createElement("button");
+  noBtn.type = "button";
+  noBtn.setAttribute("aria-label", "This was not helpful");
+  noBtn.textContent = "👎";
 
-    row.appendChild(label);
-    row.appendChild(yesBtn);
-    row.appendChild(noBtn);
-    bubbleEl.appendChild(row);
+  row.appendChild(label);
+  row.appendChild(yesBtn);
+  row.appendChild(noBtn);
+  bubbleEl.appendChild(row);
 
-    const acknowledge = (helpful) => {
-      yesBtn.disabled = true;
-      noBtn.disabled = true;
-      row.innerHTML = helpful
-        ? "<span class=\"keelie-feedback-thanks\">Thanks!</span>"
-        : "<span class=\"keelie-feedback-thanks\">Thanks — noted.</span>";
+  const acknowledge = (helpful) => {
+    yesBtn.disabled = true;
+    noBtn.disabled = true;
+    row.innerHTML = helpful
+      ? '<span class="keelie-feedback-thanks">Thanks!</span>'
+      : '<span class="keelie-feedback-thanks">Thanks — noted.</span>';
 
-      // Optional: store locally (no server)
-      try {
-        const key = "keelie_feedback";
-        const data = JSON.parse(localStorage.getItem(key)) || {
-          helpful: 0,
-          notHelpful: 0
-        };
+    // Optional: store locally (no server)
+    try {
+      const key = "keelie_feedback";
+      const data = JSON.parse(localStorage.getItem(key)) || {
+        helpful: 0,
+        notHelpful: 0
+      };
 
-        if (helpful) {
-          data.helpful += 1;
-        } else {
-          data.notHelpful += 1;
-        }
+      if (helpful) data.helpful += 1;
+      else data.notHelpful += 1;
 
-        localStorage.setItem(key, JSON.stringify(data));
-      } catch (e) {
-        // silently ignore storage errors
-      }
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      // ignore
+    }
+  };
 
-    yesBtn.addEventListener("click", () => acknowledge(true));
-    noBtn.addEventListener("click", () => acknowledge(false));
-  }
+  yesBtn.addEventListener("click", () => acknowledge(true));
+  noBtn.addEventListener("click", () => acknowledge(false));
+}
+
 
 function addBubble(who, text) {
     const row = document.createElement("div");
@@ -630,5 +629,4 @@ function addBubble(who, text) {
     }
   }, 250);
 }
-
 mountWidget();
