@@ -25,7 +25,6 @@ function escapeHtml(s) {
     .replace(/\'/g, "&#039;");
 }
 
-
 function linkify(safeHtmlText) {
   // Convert http(s) URLs into clickable links.
   // Input MUST already be escaped.
@@ -42,7 +41,6 @@ function linkify(safeHtmlText) {
     );
   });
 }
-
 
 function formatKeelie(text) {
   let safe = escapeHtml(text);
@@ -115,11 +113,21 @@ function mountWidget() {
   setTimeout(() => launcher.classList.add("keelie-pulse"), 600);
   setTimeout(() => launcher.classList.remove("keelie-pulse"), 2200);
 
-
   const chatEl = panel.querySelector("#keelie-chat");
   const inputEl = panel.querySelector("#keelie-text");
   const sendBtn = panel.querySelector("#keelie-send");
   const closeBtn = panel.querySelector(".keelie-close");
+
+  // ==============================
+  // Accessibility: autosuggest ARIA wiring
+  // ==============================
+  // (Progressive enhancement: harmless if suggestions are disabled)
+  try {
+    inputEl.setAttribute("aria-autocomplete", "list");
+    inputEl.setAttribute("aria-haspopup", "listbox");
+    inputEl.setAttribute("aria-expanded", "false");
+    inputEl.setAttribute("aria-controls", "keelie-suggest-list");
+  } catch (e) {}
 
   // Status lines exist for fallback; Python also uses inline status bubbles via window.keelieShowStatus
   const thinkingEl = panel.querySelector("#keelie-thinking");
@@ -128,7 +136,7 @@ function mountWidget() {
   // ==============================
   // Chat bubbles
   // ==============================
-    // ==============================
+  // ==============================
   // Feedback buttons (👍/👎)
   // - Shown on fallback AND key “high-value” answers
   // - Never shown on the initial onboarding/help panel
@@ -182,70 +190,69 @@ function mountWidget() {
   }
 
   function attachFeedback(bubbleEl, originalText) {
-  if (!bubbleEl || bubbleEl.querySelector(".keelie-feedback")) return;
+    if (!bubbleEl || bubbleEl.querySelector(".keelie-feedback")) return;
 
-  const row = document.createElement("div");
-  row.className = "keelie-feedback";
+    const row = document.createElement("div");
+    row.className = "keelie-feedback";
 
-  const label = document.createElement("span");
-  label.className = "keelie-feedback-label";
-  label.textContent = "Helpful?";
+    const label = document.createElement("span");
+    label.className = "keelie-feedback-label";
+    label.textContent = "Helpful?";
 
-  const yesBtn = document.createElement("button");
-  yesBtn.type = "button";
-  yesBtn.setAttribute("aria-label", "This was helpful");
-  yesBtn.textContent = "👍";
+    const yesBtn = document.createElement("button");
+    yesBtn.type = "button";
+    yesBtn.setAttribute("aria-label", "This was helpful");
+    yesBtn.textContent = "👍";
 
-  const noBtn = document.createElement("button");
-  noBtn.type = "button";
-  noBtn.setAttribute("aria-label", "This was not helpful");
-  noBtn.textContent = "👎";
+    const noBtn = document.createElement("button");
+    noBtn.type = "button";
+    noBtn.setAttribute("aria-label", "This was not helpful");
+    noBtn.textContent = "👎";
 
-  row.appendChild(label);
-  row.appendChild(yesBtn);
-  row.appendChild(noBtn);
-  bubbleEl.appendChild(row);
+    row.appendChild(label);
+    row.appendChild(yesBtn);
+    row.appendChild(noBtn);
+    bubbleEl.appendChild(row);
 
-  const acknowledge = (helpful) => {
-    yesBtn.disabled = true;
-    noBtn.disabled = true;
-    row.innerHTML = helpful
-      ? '<span class="keelie-feedback-thanks">Thanks!</span>'
-      : '<span class="keelie-feedback-thanks">Thanks — noted.</span>';
+    const acknowledge = (helpful) => {
+      yesBtn.disabled = true;
+      noBtn.disabled = true;
+      row.innerHTML = helpful
+        ? '<span class="keelie-feedback-thanks">Thanks!</span>'
+        : '<span class="keelie-feedback-thanks">Thanks — noted.</span>';
 
-    // Optional: store locally (no server)
-    try {
-      const key = "keelie_feedback";
-      let stored = JSON.parse(localStorage.getItem(key));
+      // Optional: store locally (no server)
+      try {
+        const key = "keelie_feedback";
+        let stored = JSON.parse(localStorage.getItem(key));
 
-      // Start fresh if missing
-      if (!stored) stored = { helpful: 0, notHelpful: 0 };
+        // Start fresh if missing
+        if (!stored) stored = { helpful: 0, notHelpful: 0 };
 
-      // Migrate old array format -> counts object
-      if (Array.isArray(stored)) {
-        const counts = { helpful: 0, notHelpful: 0 };
-        stored.forEach(e => {
-          if (e && e.helpful === true) counts.helpful += 1;
-          if (e && e.helpful === false) counts.notHelpful += 1;
-        });
-        stored = counts;
-      }
+        // Migrate old array format -> counts object
+        if (Array.isArray(stored)) {
+          const counts = { helpful: 0, notHelpful: 0 };
+          stored.forEach(e => {
+            if (e && e.helpful === true) counts.helpful += 1;
+            if (e && e.helpful === false) counts.notHelpful += 1;
+          });
+          stored = counts;
+        }
 
-      // Increment
-      if (helpful) stored.helpful += 1;
-      else stored.notHelpful += 1;
+        // Increment
+        if (helpful) stored.helpful += 1;
+        else stored.notHelpful += 1;
 
-      localStorage.setItem(key, JSON.stringify(stored));
-    } catch (e) {}
+        localStorage.setItem(key, JSON.stringify(stored));
+      } catch (e) {}
 
-  };
+    };
 
-  yesBtn.addEventListener("click", () => acknowledge(true));
-  noBtn.addEventListener("click", () => acknowledge(false));
-}
+    yesBtn.addEventListener("click", () => acknowledge(true));
+    noBtn.addEventListener("click", () => acknowledge(false));
+  }
 
-
-function addBubble(who, text) {
+  function addBubble(who, text) {
     const row = document.createElement("div");
     row.className = `keelie-msg ${who === "You" ? "you" : "bot"}`;
 
@@ -303,6 +310,14 @@ function addBubble(who, text) {
   const suggestList = panel.querySelector("#keelie-suggest-list");
   const SUGGEST_ENABLED = !!(suggestWrap && suggestList);
 
+  // ARIA roles for listbox semantics
+  if (SUGGEST_ENABLED) {
+    try {
+      suggestList.setAttribute("role", "listbox");
+      suggestList.setAttribute("aria-label", "Suggestions");
+    } catch (e) {}
+  }
+
   const SUGGESTIONS = [
     "What’s the minimum order value?",
     "What’s the minimum value?",
@@ -349,6 +364,12 @@ function addBubble(who, text) {
     activeSuggestIndex = -1;
     currentSuggestItems = [];
     panel.classList.remove("is-suggesting");
+
+    // ARIA reset
+    try {
+      inputEl.setAttribute("aria-expanded", "false");
+      inputEl.removeAttribute("aria-activedescendant");
+    } catch (e) {}
   }
 
   function setActiveSuggest(nextIndex) {
@@ -360,7 +381,18 @@ function addBubble(who, text) {
     children.forEach((el, i) => {
       if (i === activeSuggestIndex) el.classList.add("is-active");
       else el.classList.remove("is-active");
+
+      // ARIA selection state
+      try {
+        el.setAttribute("aria-selected", i === activeSuggestIndex ? "true" : "false");
+      } catch (e) {}
     });
+
+    // Reflect active option for screen readers
+    try {
+      const activeEl = children[activeSuggestIndex];
+      if (activeEl && activeEl.id) inputEl.setAttribute("aria-activedescendant", activeEl.id);
+    } catch (e) {}
   }
 
   function acceptActiveSuggest() {
@@ -391,11 +423,16 @@ function addBubble(who, text) {
 
     suggestList.innerHTML = "";
 
-    items.forEach((text) => {
+    items.forEach((text, idx) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "keelie-suggest-item";
       btn.textContent = text;
+
+      // ARIA option semantics
+      btn.setAttribute("role", "option");
+      btn.setAttribute("aria-selected", "false");
+      btn.id = `keelie-suggest-opt-${idx}`;
 
       // pointerdown is the most reliable across devices;
       // preventDefault stops input blur issues.
@@ -413,6 +450,11 @@ function addBubble(who, text) {
 
     suggestWrap.style.display = "block";
     panel.classList.add("is-suggesting");
+
+    // ARIA open state
+    try {
+      inputEl.setAttribute("aria-expanded", "true");
+    } catch (e) {}
   }
 
   function updateSuggest() {
@@ -539,7 +581,6 @@ function addBubble(who, text) {
     return true;
   }
 
-
   async function doSend() {
     hideSuggest();
 
@@ -603,7 +644,7 @@ function addBubble(who, text) {
 
   const py = document.createElement("py-script");
   // bump this ?v= if you change python file
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=12`);
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=13`);
   document.body.appendChild(py);
 
   const failTimer = setTimeout(() => {

@@ -3,7 +3,7 @@ import random
 import asyncio
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from js import window
 
@@ -62,7 +62,16 @@ KEELECO_OVERVIEW = (
 # Global state
 # =========================
 PENDING_STOCK_LOOKUP = False
+
+# Stock disambiguation (new: top-3 candidate flow)
+PENDING_STOCK_CHOICES: List[Dict[str, str]] = []  # [{product_name, stock_code}, ...]
+PENDING_STOCK_QUERY: str = ""
+
 STOCK_ROWS: List[Dict[str, str]] = []  # loaded from JS Excel conversion
+
+# Confidence thresholds
+STOCK_HIGH = 0.75
+STOCK_MED = 0.55
 
 # =========================
 # Helpers
@@ -156,8 +165,6 @@ def is_eco_question(text: str) -> bool:
     ]
     return any(x in t for x in triggers)
 
-
-
 # =========================
 # Privacy guardrail
 # =========================
@@ -202,7 +209,6 @@ def is_help_question(text: str) -> bool:
     ]
     return any(x in t for x in triggers)
 
-
 # =========================
 # Greeting detection (priority fix)
 # =========================
@@ -242,30 +248,116 @@ async def load_stock_rows_from_js():
     except Exception:
         STOCK_ROWS = []
 
+def _top_stock_candidates(query: str, limit: int = 3) -> List[Tuple[float, Dict[str, str]]]:
+    """
+    Returns [(score, row), ...] sorted high->low for the user's query.
+    """
+    q = normalize_for_product_match(query)
+    scored: List[Tuple[float, Dict[str, str]]] = []
+    for row in STOCK_ROWS:
+        name = str(row.get("product_name", "")).lower().strip()
+        if not name:
+            continue
+        score = similarity(q, name)
+        scored.append((score, row))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return scored[:limit]
+
+def _offer_stock_choices(choices: List[Dict[str, str]]) -> str:
+    lines = ["I found a few close matches — which one did you mean? Reply with **1**, **2**, or **3**:"]
+    for i, row in enumerate(choices, start=1):
+        product = str(row.get("product_name", "")).strip().title()
+        code = str(row.get("stock_code", "")).strip()
+        # show both to reduce mis-picks
+        lines.append(f"{i}. **{product}** (stock code **{code}**)")
+    return "\n".join(lines)
+
+def _clear_pending_stock():
+    global PENDING_STOCK_LOOKUP, PENDING_STOCK_CHOICES, PENDING_STOCK_QUERY
+    PENDING_STOCK_LOOKUP = False
+    PENDING_STOCK_CHOICES = []
+    PENDING_STOCK_QUERY = ""
+
+def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
+    """
+    If we're waiting for the user to pick 1/2/3, resolve it here.
+    Returns response string if handled, else None.
+    """
+    global PENDING_STOCK_LOOKUP, PENDING_STOCK_CHOICES
+
+    if not PENDING_STOCK_LOOKUP or not PENDING_STOCK_CHOICES:
+        return None
+
+    t = clean_text(user_text)
+
+    # If they ask something else (e.g. "minimum order"), abandon the pending selection.
+    if is_minimum_order_question(t) or is_delivery_question(t) or is_eco_question(t) or is_production_question(t) or is_help_question(t):
+        _clear_pending_stock()
+        return None
+
+    # Numeric choice 1-3
+    m = re.search(r"\b([1-3])\b", t)
+    if m:
+        idx = int(m.group(1)) - 1
+        if 0 <= idx < len(PENDING_STOCK_CHOICES):
+            row = PENDING_STOCK_CHOICES[idx]
+            product = str(row.get("product_name", "")).strip().title()
+            code = str(row.get("stock_code", "")).strip()
+            _clear_pending_stock()
+            return f"The stock code for **{product}** is **{code}**."
+        # fallthrough to re-offer
+
+    # If they type part of the product name, try to match among the candidates
+    best = None
+    best_s = 0.0
+    for row in PENDING_STOCK_CHOICES:
+        name = str(row.get("product_name", "")).lower().strip()
+        s = similarity(normalize_for_product_match(user_text), name)
+        if s > best_s:
+            best_s = s
+            best = row
+
+    if best and best_s >= 0.60:
+        product = str(best.get("product_name", "")).strip().title()
+        code = str(best.get("stock_code", "")).strip()
+        _clear_pending_stock()
+        return f"The stock code for **{product}** is **{code}**."
+
+    # Otherwise re-offer the list (keeps user guided)
+    return _offer_stock_choices(PENDING_STOCK_CHOICES)
+
 def lookup_stock_code(user_text: str) -> str:
+    global PENDING_STOCK_LOOKUP, PENDING_STOCK_CHOICES, PENDING_STOCK_QUERY
+
     if not STOCK_ROWS:
         return (
             "I can’t access stock codes right now (stock_codes.xlsx may be missing or unreadable). "
             f"Please contact customer service here:\n{CUSTOMER_SERVICE_URL}"
         )
 
-    query = normalize_for_product_match(user_text)
-
-    best_row = None
-    best_score = 0.0
-    for row in STOCK_ROWS:
-        name = str(row.get("product_name", "")).lower().strip()
-        score = similarity(query, name)
-        if score > best_score:
-            best_score = score
-            best_row = row
-
-    if best_score < 0.6 or not best_row:
+    top = _top_stock_candidates(user_text, limit=3)
+    if not top:
         return "I’m not sure which product you mean. Could you please provide the product name?"
 
-    product = str(best_row.get("product_name", "")).strip().title()
-    code = str(best_row.get("stock_code", "")).strip()
-    return f"The stock code for **{product}** is **{code}**."
+    best_score, best_row = top[0]
+
+    # High confidence → answer directly
+    if best_score >= STOCK_HIGH:
+        product = str(best_row.get("product_name", "")).strip().title()
+        code = str(best_row.get("stock_code", "")).strip()
+        _clear_pending_stock()
+        return f"The stock code for **{product}** is **{code}**."
+
+    # Medium confidence → ask user to choose from top 3
+    if best_score >= STOCK_MED:
+        PENDING_STOCK_LOOKUP = True
+        PENDING_STOCK_QUERY = user_text
+        PENDING_STOCK_CHOICES = [row for _, row in top]
+        return _offer_stock_choices(PENDING_STOCK_CHOICES)
+
+    # Low confidence → ask for more detail
+    _clear_pending_stock()
+    return "I’m not sure which product you mean. Could you please provide the exact product name (and size, if relevant)?"
 
 def lookup_product_by_code(code: str) -> Optional[str]:
     if not STOCK_ROWS:
@@ -328,7 +420,7 @@ COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
         "title": "Keeleco British Wildlife & Farm",
         "facts": [
             "Part of Keeleco®: made using **100% recycled polyester**.",
-            "British wildlife and farm themed characters, with Keeleco eco labelling and FSC hangtags."
+            "British breakup: wildlife and farm themed characters, with Keeleco eco labelling and FSC hangtags."
         ],
     },
     "keeleco collectables": {
@@ -661,7 +753,7 @@ INTENTS = {
             f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
         ],
     ),
-        "help": Intent(
+    "help": Intent(
         priority=3,
         keywords={
             "what can you do": 6,
@@ -671,8 +763,7 @@ INTENTS = {
         },
         responses=[HELP_OVERVIEW],
     ),
-
-"goodbye": Intent(
+    "goodbye": Intent(
         priority=1,
         keywords={
             "bye": 2, "goodbye": 2, "thanks": 1, "thank you": 1, "thx": 1, "cheers": 1
@@ -682,180 +773,170 @@ INTENTS = {
         ],
     ),
     "invoice_copy": Intent(
-    priority=6,
-    keywords={
-        "invoice": 5,
-        "last invoice": 7,
-        "copy of my invoice": 7,
-        "invoice copy": 6,
-        "invoice history": 6,
-        "past invoice": 6,
-        "order invoice": 5,
-        "download invoice": 6
-    },
-    responses=[
-        "You can access copies of your invoices by logging in to your account, then navigating to:\n\n"
-        "**Account > My Orders > Invoice History**"
-    ],
-),
-
+        priority=6,
+        keywords={
+            "invoice": 5,
+            "last invoice": 7,
+            "copy of my invoice": 7,
+            "invoice copy": 6,
+            "invoice history": 6,
+            "past invoice": 6,
+            "order invoice": 5,
+            "download invoice": 6
+        },
+        responses=[
+            "To get a copy of an invoice, please use your trade account area (Invoice History), "
+            "or contact customer service if you need help accessing it:\n"
+            f"{CUSTOMER_SERVICE_URL}"
+        ],
+    ),
 }
 
-FALLBACK = (
-    "I’m not able to help with that just now.\n\n"
-    "I can help with:\n"
-    "• Stock codes / SKUs\n"
-    "• Minimum order values\n"
-    "• Keeleco® recycled materials\n"
-    "• Delivery and invoice queries\n\n"
-    "If you need further assistance, our customer service team can help here:\n"
-    f"{CUSTOMER_SERVICE_URL}"
-)
+def intent_score(intent: Intent, cleaned_text: str) -> int:
+    score = 0
+    for k, w in intent.keywords.items():
+        if k in cleaned_text:
+            score += w
+    return score
 
-def detect_intent(cleaned_text: str) -> Optional[str]:
-    best_intent = None
-    best_score = 0
+def pick_intent(cleaned_text: str) -> Optional[str]:
+    scored = []
     for name, intent in INTENTS.items():
-        score = sum(weight for phrase, weight in intent.keywords.items() if phrase in cleaned_text)
-        score *= intent.priority
-        if score > best_score:
-            best_score = score
-            best_intent = name
-    return best_intent if best_score > 0 else None
+        s = intent_score(intent, cleaned_text)
+        if s > 0:
+            scored.append((intent.priority, s, name))
+    if not scored:
+        return None
+    scored.sort(reverse=True)
+    return scored[0][2]
 
 # =========================
-# Conversation handling
+# Core responder
 # =========================
-def keelie_reply(user_input: str) -> str:
+async def respond(user_text: str) -> str:
     global PENDING_STOCK_LOOKUP
 
-    cleaned = clean_text(user_input)
+    cleaned = clean_text(user_text or "")
 
-    # ✅ Privacy guardrail (run early)
-    if contains_personal_info(user_input):
-        PENDING_STOCK_LOOKUP = False
+    # 1) Privacy guardrail always wins
+    if contains_personal_info(user_text):
+        _clear_pending_stock()
         return privacy_warning()
 
-    # ✅ Greeting MUST run first
-    if is_greeting(user_input):
-        PENDING_STOCK_LOOKUP = False
-        return random.choice(INTENTS["greeting"].responses)
+    # 2) If we are waiting for a stock disambiguation reply, handle that first
+    pending = _handle_stock_choice_reply(user_text)
+    if pending:
+        return pending
 
-    # ✅ Help / capabilities overview
-    if is_help_question(user_input):
-        PENDING_STOCK_LOOKUP = False
-        return HELP_OVERVIEW
+    # 3) Direct code -> product lookup
+    code = extract_stock_code(user_text)
+    if code:
+        prod = lookup_product_by_code(code)
+        if prod:
+            _clear_pending_stock()
+            return prod
 
-    # ✅ Collections / ranges trigger (runs early)
-    if any(x in cleaned for x in ["range", "ranges", "collection", "collections", "our collections"]):
-        PENDING_STOCK_LOOKUP = False
-        return collection_reply(cleaned)
-
-    # ✅ If they mention a known collection name directly
-    if detect_collection(cleaned):
-        PENDING_STOCK_LOOKUP = False
-        return collection_reply(cleaned)
-
-    # ✅ Delivery override
-    if is_delivery_question(user_input):
-        PENDING_STOCK_LOOKUP = False
-        return random.choice(INTENTS["delivery_time"].responses)
-
-    # ✅ Minimum order override
-    if is_minimum_order_question(user_input):
-        PENDING_STOCK_LOOKUP = False
+    # 4) Minimum order
+    if is_minimum_order_question(cleaned):
+        _clear_pending_stock()
         return minimum_order_response()
 
-    # ✅ Manufacturing location override
-    if is_production_question(user_input):
-        PENDING_STOCK_LOOKUP = False
-        return PRODUCTION_INFO
+    # 5) Production
+    if is_production_question(cleaned):
+        _clear_pending_stock()
+        return PRODUCTION_INFO + "\n\nIf you need more detail, please contact customer service:\n" + CUSTOMER_SERVICE_URL
 
-    # ✅ Eco / sustainability override -> Keeleco overview / Keeleco sub-range
-    if is_eco_question(user_input):
-        PENDING_STOCK_LOOKUP = False
-        # If they mention a sub-range, answer it; otherwise give Keeleco overview
-        if detect_collection(cleaned):
-            return collection_reply(cleaned)
+    # 6) Eco / Keeleco
+    if is_eco_question(cleaned):
+        _clear_pending_stock()
         return KEELECO_OVERVIEW
 
-    # ✅ Follow-up: user provides product name after a stock code request
-    if PENDING_STOCK_LOOKUP:
-        result = lookup_stock_code(user_input)
-        if "I’m not sure which product you mean" in result:
-            return "Please type the product name (e.g., “Polar Bear Plush 20cm”)."
-        PENDING_STOCK_LOOKUP = False
-        return result
+    # 7) Collections
+    coll = detect_collection(cleaned)
+    if coll:
+        _clear_pending_stock()
+        return collection_reply(cleaned)
 
-    # ✅ Stock code request -> tries now, or asks for product name
-    if is_stock_code_request(user_input):
-        result = lookup_stock_code(user_input)
-        if "I’m not sure which product you mean" in result:
-            PENDING_STOCK_LOOKUP = True
-            return "Sure — what’s the product name?"
-        return result
-
-    # ✅ If message contains a stock code, identify product name
-    code = extract_stock_code(user_input)
-    if code:
-        PENDING_STOCK_LOOKUP = False
-        found = lookup_product_by_code(code)
-        return found if found else (
-            f"I couldn’t find a product with the stock code **{code}**. "
-            "Please check the code and try again."
+    # 8) Delivery
+    if is_delivery_question(cleaned):
+        _clear_pending_stock()
+        return (
+            "For delivery updates, please check your order confirmation email. "
+            "It includes your estimated delivery date and tracking details if available."
         )
 
-    # ✅ Intent detection (greetings, support, etc.)
-    intent = detect_intent(cleaned)
-    if intent:
-        PENDING_STOCK_LOOKUP = False
-        return random.choice(INTENTS[intent].responses)
+    # 9) Stock code request
+    if is_stock_code_request(cleaned):
+        return lookup_stock_code(user_text)
 
-    # ✅ FAQ fallback
-    faq = best_faq_answer(cleaned)
+    # 10) Help
+    if is_help_question(cleaned):
+        _clear_pending_stock()
+        return HELP_OVERVIEW
+
+    # 11) Greeting
+    if is_greeting(cleaned):
+        _clear_pending_stock()
+        return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
+
+    # 12) FAQ similarity
+    faq = best_faq_answer(user_text)
     if faq:
-        PENDING_STOCK_LOOKUP = False
+        _clear_pending_stock()
         return faq
 
-    PENDING_STOCK_LOOKUP = False
-    return FALLBACK
+    # 13) Intent scoring fallback
+    intent_name = pick_intent(cleaned)
+    if intent_name:
+        _clear_pending_stock()
+        intent = INTENTS[intent_name]
+        return random.choice(intent.responses)
+
+    _clear_pending_stock()
+    return "I’m not able to help with that just now."
 
 # =========================
-# Wire up the UI
+# JS bridge (called by keelie.js)
 # =========================
-async def send_message():
-    msg = (window.keelieGetInput() or "").strip()
+async def keelie_send():
+    """
+    Called by JS when user hits Send.
+    Reads input, echoes user bubble, produces response bubble.
+    """
+    try:
+        msg = window.keelieGetInput()
+    except Exception:
+        msg = ""
+
+    msg = (msg or "").strip()
     if not msg:
         return
 
-    window.keelieClearInput()
+    # Echo user message
     window.keelieAddBubble("You", msg)
+    window.keelieClearInput()
 
-    # --- Thinking ---
-    if hasattr(window, "keelieShowStatus"):
-        window.keelieShowStatus("Keelie is thinking…")
-
-    await asyncio.sleep(random.uniform(0.4, 0.8))
-
-    # --- Typing ---
-    if hasattr(window, "keelieShowStatus"):
+    # Show inline status bubble
+    try:
         window.keelieShowStatus("Keelie is typing…")
+    except Exception:
+        pass
 
-    base = 0.35
-    per_char = min(len(msg) * 0.01, 1.0)
-    await asyncio.sleep(base + per_char)
+    # Lazy-load Excel rows once
+    if not STOCK_ROWS:
+        await load_stock_rows_from_js()
 
-    # Remove status bubble
-    if hasattr(window, "keelieClearStatus"):
+    # Compute response
+    answer = await respond(msg)
+
+    # Clear inline status bubble
+    try:
         window.keelieClearStatus()
+    except Exception:
+        pass
 
-    reply = keelie_reply(msg)
+    # Send bot bubble
+    window.keelieAddBubble(BOT_NAME, answer)
 
-    window.keelieAddBubble("Keelie", reply)
-
-
-async def boot():
-    await load_stock_rows_from_js()
-    window.keelieSend = send_message
-
-await boot()
+# Expose to JS
+window.keelieSend = keelie_send

@@ -8,7 +8,7 @@
 <meta http-equiv="Content-Security-Policy"
 content="
   default-src 'self' https://pyscript.net https://cdn.jsdelivr.net;
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pyscript.net https://cdn.jsdelivr.net;
+  script-src 'self' 'unsafe-eval' https://pyscript.net https://cdn.jsdelivr.net;
   style-src 'self' 'unsafe-inline' https://pyscript.net;
   img-src 'self' data:;
   connect-src 'self' https://pyscript.net https://cdn.jsdelivr.net https://files.pythonhosted.org;
@@ -306,56 +306,12 @@ content="
   <!-- SheetJS: Excel in the browser -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  <!-- Load stock_codes.xlsx -> window.keelieStockRows (BEFORE python starts) -->
-  <script>
-    // Your project base is /test-website
-    const KEELIE_EXCEL_URL = "/test-website/assets/keelie/stock_codes.xlsx";
-
-    window.keelieStockRows = [];
-
-    function normKey(k){
-      return String(k || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "_");
-    }
-
-    async function loadStockFromExcel() {
-      try {
-        const res = await fetch(KEELIE_EXCEL_URL, { cache: "no-store" });
-        if (!res.ok) {
-          console.warn("Keelie: stock_codes.xlsx not found:", res.status);
-          window.keelieStockRows = [];
-          return;
-        }
-
-        const buf = await res.arrayBuffer();
-        const wb = XLSX.read(buf, { type: "array" });
-
-        const sheetName = wb.SheetNames[0];
-        const ws = wb.Sheets[sheetName];
-        const rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-        const rows = rawRows.map(r => {
-          const obj = {};
-          for (const [k, v] of Object.entries(r)) obj[normKey(k)] = String(v).trim();
-          return {
-            product_name: obj.product_name || obj.product || obj.name || "",
-            stock_code: obj.stock_code || obj.sku || obj.code || ""
-          };
-        }).filter(r => r.product_name && r.stock_code);
-
-        window.keelieStockRows = rows;
-        console.log(`Keelie: Loaded ${rows.length} stock rows from Excel.`);
-      } catch (e) {
-        console.error("Keelie: failed to load/parse Excel", e);
-        window.keelieStockRows = [];
-      }
-    }
-
-    // Python will await this promise
-    window.keelieStockReady = loadStockFromExcel();
-  </script>
+  <!-- Load stock_codes.xlsx -> window.keelieStockRows (BEFORE python starts)
+       (externalised so CSP can remove 'unsafe-inline' for scripts) -->
+  <script
+    src="assets/keelie/keelie_stock_loader.js"
+    data-keelie-excel-url="/test-website/assets/keelie/stock_codes.xlsx"
+    defer></script>
 
   <!-- PyScript config (only runtime file) -->
   <script type="application/json" id="pyscript-config">
@@ -368,7 +324,7 @@ content="
   </script>
 
   <!-- Keelie widget JS -->
-  <script type="module" src="assets/keelie/keelie.js?v=11"></script>
+  <script type="module" src="assets/keelie/keelie.js?v=12"></script>
 </head>
 
 <body>
@@ -483,9 +439,6 @@ content="
       </div>
     </div>
   </footer>
-
-  <script>
-    document.getElementById("year").textContent = new Date().getFullYear();
-  </script>
+  <script src="assets/site_year.js" defer></script>
 </body>
 </html>
