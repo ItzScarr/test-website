@@ -166,48 +166,100 @@ def is_eco_question(text: str) -> bool:
     return any(x in t for x in triggers)
 
 # =========================
-# Privacy guardrail
+# Privacy guardrail (expanded)
 # =========================
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
-# Loose phone detection (UK-friendly, but general enough)
-PHONE_RE = re.compile(r"(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d")
-# Only treat long digit sequences as sensitive if they look order/account-related
-ORDER_CUE_RE = re.compile(r"\b(order|invoice|account|ref|reference|tracking|awb|consignment)\b", re.I)
+
+# Loose phone detection (UK-friendly but general)
+PHONE_RE = re.compile(
+    r"(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d"
+)
+
+# UK postcode (broad but useful)
+UK_POSTCODE_RE = re.compile(
+    r"\b"
+    r"(?:GIR\s?0AA|"
+    r"(?:[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}))"
+    r"\b",
+    re.I
+)
+
+# Strong cues that a message contains sensitive account/order context
+SENSITIVE_CUE_RE = re.compile(
+    r"\b("
+    r"order|invoice|account|ref|reference|tracking|track(?:ing)?\s*(?:no|number)?|"
+    r"awb|consignment|waybill|dispatch|delivery|"
+    r"purchase\s+order|po\s*number|p\.o\.|"
+    r"sales\s+order|so\s*number|return|rma"
+    r")\b",
+    re.I
+)
+
+# Patterns that often represent references/codes when paired with the above cues
+ORDER_HASH_RE = re.compile(r"\b(?:order\s*)?#\s*([A-Z0-9-]{5,})\b", re.I)
+INVOICE_CODE_RE = re.compile(r"\b(?:inv|invoice)\s*[:#]?\s*([A-Z0-9-]{5,})\b", re.I)
+PO_SO_RE = re.compile(r"\b(?:po|p\.o\.|so|sales\s*order)\s*[:#]?\s*([A-Z0-9-]{4,})\b", re.I)
+
+# Very common courier formats / tracking styles (not exhaustive)
+UPS_1Z_RE = re.compile(r"\b1Z[0-9A-Z]{8,}\b", re.I)
+LONG_ALNUM_RE = re.compile(r"\b[A-Z0-9]{10,}\b", re.I)   # catches many tracking refs when cued
 LONG_DIGITS_RE = re.compile(r"\b\d{6,}\b")
 
+# Address-like detection (lightweight heuristic)
+STREET_WORD_RE = re.compile(
+    r"\b(road|rd|street|st|lane|ln|avenue|ave|drive|dr|close|cl|way|"
+    r"court|ct|crescent|cres|place|pl|park|gardens?|grove|terrace|ter)\b",
+    re.I
+)
+HOUSE_NUM_RE = re.compile(r"\b\d{1,4}[A-Z]?\b")  # 12, 12A, 104B etc.
+
+
 def contains_personal_info(text: str) -> bool:
+    """
+    Conservative detection of sensitive info.
+    We only block when signals are reasonably strong to avoid false positives.
+    """
     t = text or ""
+    if not t.strip():
+        return False
+
+    # Always sensitive
     if EMAIL_RE.search(t):
         return True
     if PHONE_RE.search(t):
         return True
-    if ORDER_CUE_RE.search(t) and LONG_DIGITS_RE.search(t):
+
+    # UK postcode is usually an address component (treat as sensitive)
+    if UK_POSTCODE_RE.search(t):
         return True
+
+    # Address-like line: house number + street word (heuristic)
+    if HOUSE_NUM_RE.search(t) and STREET_WORD_RE.search(t):
+        return True
+
+    # If there are "sensitive cues", then treat long digits/alphanumerics as sensitive refs
+    if SENSITIVE_CUE_RE.search(t):
+        if ORDER_HASH_RE.search(t) or INVOICE_CODE_RE.search(t) or PO_SO_RE.search(t):
+            return True
+        if UPS_1Z_RE.search(t):
+            return True
+        if LONG_DIGITS_RE.search(t):
+            return True
+        # Long alphanumeric near tracking/order language
+        if LONG_ALNUM_RE.search(t):
+            return True
+
     return False
+
 
 def privacy_warning() -> str:
     return (
         "For your privacy, please don’t share personal or account details here "
-        "(such as email addresses, phone numbers, or order/invoice references).\n\n"
+        "(such as email addresses, phone numbers, delivery addresses, or order/invoice references).\n\n"
         "Our customer service team can help you securely here:\n"
         f"{CUSTOMER_SERVICE_URL}"
     )
 
-def is_help_question(text: str) -> bool:
-    t = clean_text(text)
-    triggers = [
-        "what can you help with",
-        "what can you do",
-        "what do you do",
-        "how can you help",
-        "what can i ask",
-        "what can i ask you",
-        "what questions can i ask",
-        "what are you for",
-        "what can keelie help with",
-        "how do you work",
-    ]
-    return any(x in t for x in triggers)
 
 # =========================
 # Greeting detection (priority fix)
@@ -230,6 +282,20 @@ def minimum_order_response() -> str:
         "our customer service team can help:\n"
         f"{CUSTOMER_SERVICE_URL}"
     )
+def fallback_response() -> str:
+    # Keep the first sentence the same so your existing JS feedback trigger still matches.
+    return (
+        "I’m not able to help with that just now.\n\n"
+        "Right now I *can* help with:\n"
+        "• **Minimum order values** (try: “What’s the minimum order value?”)\n"
+        "• **Stock codes / SKUs** (try: “Stock code for Polar Bear Plush 20cm”)\n"
+        "• **Keeleco® recycled materials & sustainability** (try: “Tell me about Keeleco”)\n"
+        "• **Where our toys are made** (try: “Where are your toys produced?”)\n"
+        "• **Delivery & tracking guidance** (try: “How do I track my order?”)\n"
+        "• **Invoices** (try: “How do I download an invoice?”)\n\n"
+        "Which of those do you need?"
+    )
+
 
 # =========================
 # Load stock rows from JS (Excel conversion)
@@ -893,7 +959,8 @@ async def respond(user_text: str) -> str:
         return random.choice(intent.responses)
 
     _clear_pending_stock()
-    return "I’m not able to help with that just now."
+    return fallback_response()
+
 
 # =========================
 # JS bridge (called by keelie.js)
