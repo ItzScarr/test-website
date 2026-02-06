@@ -57,6 +57,91 @@ function formatKeelie(text) {
   return safe;
 }
 
+// ==============================
+// NEW: Copy stock code helpers
+// ==============================
+function extractStockCodeFromText(text) {
+  // Looks for: "stock code ... is **ABC123**" or "... is ABC123"
+  // Keep it conservative so we only add Copy when we’re confident.
+  const t = String(text || "");
+
+  // Prefer bold **CODE**
+  let m = t.match(/stock code\b[\s\S]*?\bis\s*\*\*([A-Z0-9-]{3,})\*\*/i);
+  if (m && m[1]) return m[1].trim().toUpperCase();
+
+  // Fallback: non-bold code near "stock code ... is CODE"
+  m = t.match(/stock code\b[\s\S]*?\bis\s*([A-Z0-9-]{3,})\b/i);
+  if (m && m[1]) return m[1].trim().toUpperCase();
+
+  return null;
+}
+
+async function copyToClipboard(text) {
+  const value = String(text || "");
+  if (!value) return false;
+
+  // Modern clipboard API
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (e) {
+      // fall back below
+    }
+  }
+
+  // Fallback: execCommand
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+function attachCopyStockCode(bubbleEl, originalText) {
+  if (!bubbleEl || bubbleEl.querySelector(".keelie-copy")) return;
+
+  const code = extractStockCodeFromText(originalText);
+  if (!code) return; // only show when we’re confident it’s a stock-code answer
+
+  const row = document.createElement("div");
+  row.className = "keelie-copy";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "keelie-copy-btn";
+  btn.setAttribute("aria-label", `Copy stock code ${code}`);
+  btn.textContent = "Copy stock code";
+
+  const hint = document.createElement("span");
+  hint.className = "keelie-copy-hint";
+  hint.textContent = code;
+
+  btn.addEventListener("click", async () => {
+    const ok = await copyToClipboard(code);
+    btn.disabled = true;
+    btn.textContent = ok ? "Copied ✓" : "Copy failed";
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = "Copy stock code";
+    }, 1400);
+  });
+
+  row.appendChild(btn);
+  row.appendChild(hint);
+  bubbleEl.appendChild(row);
+}
+
 function mountWidget() {
   const launcher = el(`
     <button class="keelie-launcher" aria-label="Open chat">
@@ -121,7 +206,6 @@ function mountWidget() {
   // ==============================
   // Accessibility: autosuggest ARIA wiring
   // ==============================
-  // (Progressive enhancement: harmless if suggestions are disabled)
   try {
     inputEl.setAttribute("aria-autocomplete", "list");
     inputEl.setAttribute("aria-haspopup", "listbox");
@@ -134,15 +218,9 @@ function mountWidget() {
   const typingEl = panel.querySelector("#keelie-typing");
 
   // ==============================
-  // Chat bubbles
-  // ==============================
-  // ==============================
   // Feedback buttons (👍/👎)
-  // - Shown on fallback AND key “high-value” answers
-  // - Never shown on the initial onboarding/help panel
-  // - Never shown until the user has actually sent a message
   // ==============================
-  const FALLBACK_TRIGGER_RE = /I[’']m not able to help with that just now\./i;
+  const FALLBACK_TRIGGER_RE = /I[’']m not able to help with that just now/i;
 
   const FEEDBACK_TRIGGERS = [
     // Stock codes / SKU answers
@@ -174,7 +252,6 @@ function mountWidget() {
 
   function isOnboardingPanel(text) {
     const t = String(text || "");
-    // Covers variants like: "I can help with..." or "I can help you with things like..."
     return /\bI\s+can\s+help\b/i.test(t) && /\bWhat\s+would\s+you\s+like\s+to\s+ask\?\b/i.test(t);
   }
 
@@ -226,7 +303,6 @@ function mountWidget() {
         const key = "keelie_feedback";
         let stored = JSON.parse(localStorage.getItem(key));
 
-        // Start fresh if missing
         if (!stored) stored = { helpful: 0, notHelpful: 0 };
 
         // Migrate old array format -> counts object
@@ -239,18 +315,21 @@ function mountWidget() {
           stored = counts;
         }
 
-        // Increment
         if (helpful) stored.helpful += 1;
         else stored.notHelpful += 1;
 
         localStorage.setItem(key, JSON.stringify(stored));
       } catch (e) {}
-
     };
 
     yesBtn.addEventListener("click", () => acknowledge(true));
     noBtn.addEventListener("click", () => acknowledge(false));
   }
+
+  // ==============================
+  // Chat bubbles
+  // ==============================
+  let userHasMessaged = false; // set true after the first user send
 
   function addBubble(who, text) {
     const row = document.createElement("div");
@@ -261,10 +340,17 @@ function mountWidget() {
     bubble.innerHTML = formatKeelie(text);
 
     row.appendChild(bubble);
-    // Offer quick feedback on fallback + key answers
+
+    // Feedback
     if (shouldOfferFeedback(who, text)) {
       attachFeedback(bubble, text);
     }
+
+    // ✅ NEW: Copy stock code action when Keelie returns a stock code response
+    if (who === "Keelie") {
+      attachCopyStockCode(bubble, text);
+    }
+
     chatEl.appendChild(row);
     chatEl.scrollTop = chatEl.scrollHeight;
   }
@@ -302,15 +388,12 @@ function mountWidget() {
   window.keelieClearStatus = clearStatus;
 
   // ==============================
-  // Autosuggest (professional + safe)
-  // - shows only after 2+ chars
-  // - click suggestion: fills input + sends (via sendBtn.click())
+  // Autosuggest
   // ==============================
   const suggestWrap = panel.querySelector("#keelie-suggest");
   const suggestList = panel.querySelector("#keelie-suggest-list");
   const SUGGEST_ENABLED = !!(suggestWrap && suggestList);
 
-  // ARIA roles for listbox semantics
   if (SUGGEST_ENABLED) {
     try {
       suggestList.setAttribute("role", "listbox");
@@ -356,7 +439,6 @@ function mountWidget() {
     return overlap > 0 ? (40 + overlap) : 0;
   }
 
-  // Function declaration (hoisted) so it can never be "not defined"
   function hideSuggest() {
     if (!SUGGEST_ENABLED) return;
     suggestWrap.style.display = "none";
@@ -365,7 +447,6 @@ function mountWidget() {
     currentSuggestItems = [];
     panel.classList.remove("is-suggesting");
 
-    // ARIA reset
     try {
       inputEl.setAttribute("aria-expanded", "false");
       inputEl.removeAttribute("aria-activedescendant");
@@ -382,13 +463,11 @@ function mountWidget() {
       if (i === activeSuggestIndex) el.classList.add("is-active");
       else el.classList.remove("is-active");
 
-      // ARIA selection state
       try {
         el.setAttribute("aria-selected", i === activeSuggestIndex ? "true" : "false");
       } catch (e) {}
     });
 
-    // Reflect active option for screen readers
     try {
       const activeEl = children[activeSuggestIndex];
       if (activeEl && activeEl.id) inputEl.setAttribute("aria-activedescendant", activeEl.id);
@@ -405,7 +484,6 @@ function mountWidget() {
     inputEl.value = chosen;
     hideSuggest();
 
-    // ✅ Guaranteed send: click the actual Send button
     setTimeout(() => sendBtn.click(), 0);
     return true;
   }
@@ -429,19 +507,14 @@ function mountWidget() {
       btn.className = "keelie-suggest-item";
       btn.textContent = text;
 
-      // ARIA option semantics
       btn.setAttribute("role", "option");
       btn.setAttribute("aria-selected", "false");
       btn.id = `keelie-suggest-opt-${idx}`;
 
-      // pointerdown is the most reliable across devices;
-      // preventDefault stops input blur issues.
       btn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         inputEl.value = text;
         hideSuggest();
-
-        // ✅ Guaranteed send: click Send button
         setTimeout(() => sendBtn.click(), 0);
       });
 
@@ -451,7 +524,6 @@ function mountWidget() {
     suggestWrap.style.display = "block";
     panel.classList.add("is-suggesting");
 
-    // ARIA open state
     try {
       inputEl.setAttribute("aria-expanded", "true");
     } catch (e) {}
@@ -462,7 +534,6 @@ function mountWidget() {
 
     const query = (inputEl.value || "").trim();
 
-    // Only show after 2+ chars
     if (query.length < 2) {
       hideSuggest();
       return;
@@ -502,7 +573,6 @@ function mountWidget() {
 
   closeBtn.addEventListener("click", closePanel);
 
-  // Escape: close suggest first, then close panel
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (!panel.classList.contains("is-open")) return;
@@ -514,7 +584,6 @@ function mountWidget() {
     closePanel();
   });
 
-  // Click-away inside panel hides suggestions (not panel)
   document.addEventListener("click", (e) => {
     if (!SUGGEST_ENABLED) return;
     if (!panel.contains(e.target)) return;
@@ -524,20 +593,15 @@ function mountWidget() {
   });
 
   // ==============================
-  // Send flow
+  // Send flow + rate limiting
   // ==============================
   let pythonReady = false;
-  let userHasMessaged = false; // set true after the first user send
 
-  // ==============================
-  // Anti-spam rate limit
-  // - If a user sends too many messages quickly, apply a cooldown
-  // ==============================
-  const RATE_WINDOW_MS = 8000;   // look back 8 seconds
-  const RATE_MAX_SENDS = 4;      // allow up to 4 sends in that window
-  const COOLDOWN_MS = 10000;     // lock input for 10 seconds if exceeded
+  const RATE_WINDOW_MS = 8000;
+  const RATE_MAX_SENDS = 4;
+  const COOLDOWN_MS = 10000;
 
-  let recentSends = [];          // timestamps (ms)
+  let recentSends = [];
   let cooldownUntil = 0;
 
   function inCooldown() {
@@ -546,12 +610,9 @@ function mountWidget() {
 
   function startCooldown() {
     cooldownUntil = Date.now() + COOLDOWN_MS;
-
-    // Disable input + send button during cooldown
     inputEl.disabled = true;
     sendBtn.disabled = true;
 
-    // Brief feedback (keep it short)
     addBubble("Keelie", "Please slow down a little — you can send another message in a few seconds.");
 
     setTimeout(() => {
@@ -565,13 +626,10 @@ function mountWidget() {
 
   function registerSendOrCooldown() {
     const now = Date.now();
-
     if (now < cooldownUntil) return false;
 
-    // Keep only sends within the window
     recentSends = recentSends.filter(t => now - t <= RATE_WINDOW_MS);
 
-    // Too many sends -> cooldown
     if (recentSends.length >= RATE_MAX_SENDS) {
       startCooldown();
       return false;
@@ -586,9 +644,9 @@ function mountWidget() {
 
     const msg = (inputEl.value || "").trim();
     if (!msg) return;
+
     userHasMessaged = true;
 
-    // ✅ Anti-spam gate
     if (!registerSendOrCooldown()) return;
 
     if (!pythonReady || typeof window.keelieSend !== "function") {
@@ -603,7 +661,6 @@ function mountWidget() {
   inputEl.addEventListener("input", () => updateSuggest());
 
   inputEl.addEventListener("keydown", (e) => {
-    // If suggestions are open, allow navigation + Enter to accept (and send)
     if (SUGGEST_ENABLED && suggestWrap.style.display !== "none") {
       const max = currentSuggestItems.length - 1;
 
@@ -622,9 +679,7 @@ function mountWidget() {
       }
 
       if (e.key === "Enter") {
-        // Accept highlighted suggestion -> sends automatically
         if (acceptActiveSuggest()) return;
-        // Otherwise send typed text
         e.preventDefault();
         doSend();
         return;
@@ -643,7 +698,6 @@ function mountWidget() {
   showStatus("Loading assistant…");
 
   const py = document.createElement("py-script");
-  // bump this ?v= if you change python file
   py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=13`);
   document.body.appendChild(py);
 
@@ -680,4 +734,5 @@ function mountWidget() {
     }
   }, 250);
 }
+
 mountWidget();

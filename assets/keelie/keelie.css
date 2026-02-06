@@ -408,3 +408,32 @@
   text-underline-offset: 3px;
 }
 .keelie-bubble a:hover{ opacity: .85; }
+/* Copy stock code action */
+.keelie-copy{
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.keelie-copy-btn{
+  font: inherit;
+  border: 1px solid rgba(0,0,0,.12);
+  background: #fff;
+  padding: 7px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.keelie-copy-btn:disabled{
+  opacity: .65;
+  cursor: default;
+}
+
+.keelie-copy-hint{
+  font-size: 12px;
+  opacity: .7;
+}
