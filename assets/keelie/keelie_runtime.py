@@ -880,13 +880,21 @@ async def respond(user_text: str) -> str:
         return pending
 
     # 3) Frustration detection (session-only)
+# 3) Frustration detection (session-only)
     global FRUSTRATION_STRIKES
     if detect_frustration(user_text):
         FRUSTRATION_STRIKES += 1
         _clear_pending_stock()
+        # IMPORTANT: update repeat-check memory after evaluating
+        register_message_for_repeat_check(user_text)
+
         if FRUSTRATION_STRIKES >= 2:
             return frustration_escalate_response()
         return frustration_first_response()
+
+# Update repeat-check memory for normal messages
+register_message_for_repeat_check(user_text)
+
 
     # Reset frustration on positive signals
     if any(x in cleaned for x in ["thanks", "thank you", "cheers", "great", "perfect", "ok"]):
