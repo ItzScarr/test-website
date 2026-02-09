@@ -571,6 +571,29 @@ INTENTS = {
             f"{CUSTOMER_SERVICE_URL}"
         ],
     ),
+    "opening_hours": Intent(
+        priority=6,
+        keywords={
+            "opening hours": 7,
+            "office hours": 7,
+            "business hours": 7,
+            "what time are you open": 8,
+            "what time are you closed": 8,
+            "what time do you open": 8,
+            "what time do you close": 8,
+            "when are you open": 7,
+            "when are you closed": 7,
+            "hours": 2,
+            "open": 2,
+            "close": 2
+        },
+        responses=[
+            "Our office hours are:\n"
+            "• **Monday–Friday:** 9:00am–5:00pm (UK time)\n\n"
+            "We’re closed on weekends and UK public holidays.\n\n"
+            f"If you need help outside these hours, you can contact us here:\n{CUSTOMER_SERVICE_URL}"
+        ],
+    ),
     "delivery_time": Intent(
         priority=5,
         keywords={
