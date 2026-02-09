@@ -1,7 +1,6 @@
 # File: assets/keelie/keelie_runtime.py
 import re
 import random
-import asyncio
 import time
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -63,14 +62,12 @@ KEELECO_OVERVIEW = (
 # =========================
 # Global state
 # =========================
-STOCK_ROWS: List[Dict[str, str]] = []  # loaded from JS Excel conversion
+STOCK_ROWS: List[Dict[str, str]] = []
 
-# Stock disambiguation state
 PENDING_STOCK_LOOKUP = False
-PENDING_STOCK_CHOICES: List[Dict[str, str]] = []  # [{product_name, stock_code}, ...]
+PENDING_STOCK_CHOICES: List[Dict[str, str]] = []
 PENDING_STOCK_QUERY: str = ""
 
-# Confidence thresholds
 STOCK_HIGH = 0.75
 STOCK_MED = 0.55
 
@@ -93,7 +90,7 @@ def extract_stock_code(text: str) -> Optional[str]:
 def normalize_for_product_match(text: str) -> str:
     t = clean_text(text)
     junk_phrases = [
-        "can you tell me", "could you tell me", "please", "what is", "whats",
+        "can you tell me", "could you tell me", "please", "what is", "whats", "what's",
         "the product code", "product code", "stock code", "item code", "sku",
         "code for", "code of"
     ]
@@ -177,6 +174,7 @@ def is_help_question(text: str) -> bool:
         "what are you for",
         "what can keelie help with",
         "how do you work",
+        "help",
     ]
     return any(x in t for x in triggers)
 
@@ -187,6 +185,17 @@ def is_greeting(text: str) -> bool:
         "good morning", "good afternoon", "good evening"
     }
     return (t in greetings) or any(t.startswith(g + " ") for g in greetings)
+
+def is_goodbye(text: str) -> bool:
+    t = clean_text(text)
+    goodbyes = {
+        "bye", "goodbye", "good bye", "see you", "see ya", "cya",
+        "thanks bye", "thank you bye", "cheers bye",
+        "ok bye", "okay bye"
+    }
+    if t in goodbyes:
+        return True
+    return any(t.startswith(g + " ") for g in goodbyes) or any(t.endswith(" " + g) for g in goodbyes)
 
 # =========================
 # Responses
@@ -218,15 +227,8 @@ def fallback_response() -> str:
 # Privacy guardrail (expanded)
 # =========================
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
-
-PHONE_RE = re.compile(
-    r"(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d"
-)
-
-UK_POSTCODE_RE = re.compile(
-    r"\b(?:GIR\s?0AA|(?:[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}))\b",
-    re.I
-)
+PHONE_RE = re.compile(r"(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d")
+UK_POSTCODE_RE = re.compile(r"\b(?:GIR\s?0AA|(?:[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}))\b", re.I)
 
 SENSITIVE_CUE_RE = re.compile(
     r"\b("
@@ -264,12 +266,9 @@ def contains_personal_info(text: str) -> bool:
         return True
     if UK_POSTCODE_RE.search(t):
         return True
-
-    # Address-like heuristic
     if HOUSE_NUM_RE.search(t) and STREET_WORD_RE.search(t):
         return True
 
-    # If they mention order/invoice/tracking etc, treat refs as sensitive
     if SENSITIVE_CUE_RE.search(t):
         if ORDER_HASH_RE.search(t) or INVOICE_CODE_RE.search(t) or PO_SO_RE.search(t):
             return True
@@ -321,26 +320,22 @@ def detect_frustration(user_text: str) -> bool:
 
     t = clean_text(t_raw)
 
-    # ✅ Never treat greetings / very short inputs as frustration
-    if is_greeting(t) or len(t) <= 3:
+    # Never treat greetings / goodbyes / very short inputs as frustration
+    if is_greeting(t) or is_goodbye(t) or len(t) <= 3:
         return False
 
-    # Direct frustration keywords
     if any(k in t for k in FRUSTRATION_KEYWORDS):
         return True
 
-    # Multiple punctuation like "???" or "!!!"
     if "??" in t_raw or "!!" in t_raw:
         return True
 
-    # ALL CAPS yelling (only if meaningfully long)
     letters = [c for c in t_raw if c.isalpha()]
     if len(letters) >= 8:
         upper_ratio = sum(1 for c in letters if c.isupper()) / max(1, len(letters))
         if upper_ratio >= 0.85:
             return True
 
-    # Repeated message only counts as frustration IF there is ALSO another frustration signal
     global LAST_USER_CLEAN, LAST_USER_TS
     now = time.time()
     if LAST_USER_CLEAN and (now - LAST_USER_TS) <= 40:
@@ -419,7 +414,6 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
 
     t = clean_text(user_text)
 
-    # If they switch topic, abandon pending state.
     if (
         is_minimum_order_question(t)
         or is_delivery_question(t)
@@ -427,11 +421,11 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
         or is_production_question(t)
         or is_help_question(t)
         or is_greeting(t)
+        or is_goodbye(t)
     ):
         _clear_pending_stock()
         return None
 
-    # Numeric choice 1-3
     m = re.search(r"\b([1-3])\b", t)
     if m:
         idx = int(m.group(1)) - 1
@@ -442,7 +436,6 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
             _clear_pending_stock()
             return f"The stock code for **{product}** is **{code}**."
 
-    # If they typed a name, try to match among candidates
     best = None
     best_s = 0.0
     for row in PENDING_STOCK_CHOICES:
@@ -475,14 +468,12 @@ def lookup_stock_code(user_text: str) -> str:
 
     best_score, best_row = top[0]
 
-    # High confidence
     if best_score >= STOCK_HIGH:
         product = str(best_row.get("product_name", "")).strip().title()
         code = str(best_row.get("stock_code", "")).strip()
         _clear_pending_stock()
         return f"The stock code for **{product}** is **{code}**."
 
-    # Medium confidence -> ask to choose
     if best_score >= STOCK_MED:
         PENDING_STOCK_LOOKUP = True
         PENDING_STOCK_QUERY = user_text
@@ -502,145 +493,6 @@ def lookup_product_by_code(code: str) -> Optional[str]:
             product = str(row.get("product_name", "")).strip().title()
             return f"The product with stock code **{code}** is **{product}**."
     return None
-
-# =========================
-# Collections / ranges
-# =========================
-COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
-    "keeleco": {
-        "title": "Keeleco®",
-        "facts": [
-            "Eco-focused range made from **100% recycled polyester** (plush + fibre fill).",
-            "Around **10 recycled 500ml bottles** can produce enough fibre for an **18cm** toy (guide figure).",
-            "**FSC card** hangtags attached with **cotton**.",
-            "Recycled cartons sealed with **paper tape**.",
-            "Made in an **ethically audited** factory."
-        ],
-    },
-    "keeleco dinosaurs": {
-        "title": "Keeleco Dinosaurs",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Dinosaur-themed characters within the Keeleco eco range."
-        ],
-    },
-    "love to hug": {
-        "title": "Love To Hug",
-        "facts": [
-            "A Keel Toys collection focused on soft, huggable plush characters.",
-            "If you tell me the character/size, I can help check stock codes (if available in the Excel)."
-        ],
-    },
-    "motsu": {
-        "title": "Motsu",
-        "facts": [
-            "A Keel Toys character collection with its own distinct style and designs.",
-            "If you share the exact product name, I can help find the stock code (if listed)."
-        ],
-    },
-    "pippins": {
-        "title": "Pippins",
-        "facts": [
-            "A Keel Toys collection featuring cute character-led soft toys.",
-            "If you share the product name, I can look up the stock code (if present in your Excel)."
-        ],
-    },
-    "pugsley & friends": {
-        "title": "Pugsley & Friends",
-        "facts": [
-            "A Keel Toys character collection in the ‘Friends’ style range.",
-            "If you share the specific product name, I can help locate the stock code (if listed)."
-        ],
-    },
-    "seasonal": {
-        "title": "Seasonal",
-        "facts": [
-            "Seasonal collections cover time-of-year themes (e.g., holiday gifting and seasonal characters).",
-            "If you tell me which season/character, I can help with stock codes if they’re in your Excel."
-        ],
-    },
-    "signature cuddle puppies": {
-        "title": "Signature Cuddle Puppies",
-        "facts": [
-            "A Signature collection focused on puppy characters in a ‘cuddle’ style.",
-            "Share a product name/size and I can help identify the stock code (if listed)."
-        ],
-    },
-    "signature cuddle teddies": {
-        "title": "Signature Cuddle Teddies",
-        "facts": [
-            "A Signature collection focused on teddy characters in a ‘cuddle’ style.",
-            "Share a product name/size and I can help identify the stock code (if listed)."
-        ],
-    },
-    "signature cuddle wild": {
-        "title": "Signature Cuddle Wild",
-        "facts": [
-            "A Signature collection featuring wild-animal characters in a ‘cuddle’ style.",
-            "Share a product name/size and I can help identify the stock code (if listed)."
-        ],
-    },
-    "signature forever puppies": {
-        "title": "Signature Forever Puppies",
-        "facts": [
-            "A Signature collection focused on puppy characters in the ‘Forever Puppies’ line.",
-            "Share a product name/size and I can help identify the stock code (if listed)."
-        ],
-    },
-    "souvenir": {
-        "title": "Souvenir",
-        "facts": [
-            "A collection designed for gift/souvenir-style plush items.",
-            "If you provide the product name or a code, I can help confirm stock code details (if listed)."
-        ],
-    },
-}
-
-def detect_collection(cleaned_text: str) -> Optional[str]:
-    keys = sorted(COLLECTION_FACTS.keys(), key=len, reverse=True)
-    for k in keys:
-        if k in cleaned_text:
-            return k
-    return None
-
-def collections_overview() -> str:
-    kee_sub = [
-        "Keeleco",
-        "Keeleco Dinosaurs",
-    ]
-    others = [
-        "Love To Hug",
-        "Motsu",
-        "Pippins",
-        "Pugsley & Friends",
-        "Seasonal",
-        "Signature Cuddle Puppies",
-        "Signature Cuddle Teddies",
-        "Signature Cuddle Wild",
-        "Signature Forever Puppies",
-        "Souvenir",
-    ]
-    return (
-        "Here are our main collections/ranges:\n\n"
-        "Keeleco®:\n"
-        + "\n".join([f"• {x}" for x in kee_sub]) +
-        "\n\nOther collections:\n"
-        + "\n".join([f"• {x}" for x in others]) +
-        "\n\nTell me which one you’re interested in and I’ll share some facts about it."
-    )
-
-def collection_reply(cleaned_text: str) -> str:
-    key = detect_collection(cleaned_text)
-    if not key:
-        return collections_overview()
-
-    info = COLLECTION_FACTS[key]
-    facts = "\n".join([f"• {f}" for f in info["facts"]])
-
-    if key == "keeleco" and is_eco_question(cleaned_text):
-        return KEELECO_OVERVIEW
-
-    return f"Here’s an overview of **{info['title']}**:\n{facts}"
 
 # =========================
 # FAQ (simple similarity)
@@ -747,7 +599,7 @@ def pick_intent(cleaned_text: str) -> Optional[str]:
     return scored[0][2]
 
 # =========================
-# Core responder — FIXED ORDER
+# Core responder — correct ordering
 # =========================
 async def respond(user_text: str) -> str:
     cleaned = clean_text(user_text or "")
@@ -763,13 +615,11 @@ async def respond(user_text: str) -> str:
         reset_frustration()
         return pending
 
-    # 3) Frustration detection (CHECK FIRST; do not pre-register message!)
+    # 3) Frustration detection (CHECK FIRST; do not pre-register)
     global FRUSTRATION_STRIKES
     if detect_frustration(user_text):
         FRUSTRATION_STRIKES += 1
         _clear_pending_stock()
-
-        # update repeat-check memory AFTER evaluating
         register_message_for_repeat_check(user_text)
 
         if FRUSTRATION_STRIKES >= 2:
@@ -779,14 +629,23 @@ async def respond(user_text: str) -> str:
     # Normal path: now register for repeat detection
     register_message_for_repeat_check(user_text)
 
-    # 4) Greeting early (so it can't be pre-empted)
+    # 4) Greeting early
     if is_greeting(cleaned):
         _clear_pending_stock()
         reset_frustration()
         return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
 
+    # 5) Goodbye early
+    if is_goodbye(cleaned):
+        _clear_pending_stock()
+        reset_frustration()
+        return (
+            "Goodbye! 👋 If you need anything else later, I’m here.\n\n"
+            f"Customer service: {CUSTOMER_SERVICE_URL}"
+        )
+
     # Reset frustration on positive signals
-    if any(x in cleaned for x in ["thanks", "thank you", "cheers", "great", "perfect", "ok"]):
+    if any(x in cleaned for x in ["thanks", "thank you", "cheers", "great", "perfect", "ok", "okay"]):
         reset_frustration()
 
     # Direct code -> product lookup
@@ -815,12 +674,6 @@ async def respond(user_text: str) -> str:
         _clear_pending_stock()
         reset_frustration()
         return KEELECO_OVERVIEW
-
-    # Collections
-    if detect_collection(cleaned):
-        _clear_pending_stock()
-        reset_frustration()
-        return collection_reply(cleaned)
 
     # Delivery / tracking guidance
     if is_delivery_question(cleaned):
@@ -863,10 +716,6 @@ async def respond(user_text: str) -> str:
 # JS bridge (called by keelie.js)
 # =========================
 async def keelie_send():
-    """
-    Called by JS when user hits Send.
-    Reads input, echoes user bubble, produces response bubble.
-    """
     try:
         msg = window.keelieGetInput()
     except Exception:
@@ -884,7 +733,6 @@ async def keelie_send():
     except Exception:
         pass
 
-    # Load stock rows lazily
     if not STOCK_ROWS:
         await load_stock_rows_from_js()
 
@@ -897,5 +745,4 @@ async def keelie_send():
 
     window.keelieAddBubble(BOT_NAME, answer)
 
-# Expose to JS
 window.keelieSend = keelie_send
