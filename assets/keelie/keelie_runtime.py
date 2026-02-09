@@ -893,7 +893,7 @@ async def respond(user_text: str) -> str:
         return frustration_first_response()
 
 # Update repeat-check memory for normal messages
-register_message_for_repeat_check(user_text)
+    register_message_for_repeat_check(user_text)
 
 
     # Reset frustration on positive signals
