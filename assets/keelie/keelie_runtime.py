@@ -83,6 +83,48 @@ def clean_text(text: str) -> str:
 def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
+def tokenize(text: str) -> List[str]:
+    return [t for t in clean_text(text).split() if t]
+
+def fuzzy_contains(text: str, phrase: str, threshold: float = 0.86) -> bool:
+    """
+    True if `phrase` is approximately contained in `text` allowing small typos.
+    """
+    if not text or not phrase:
+        return False
+
+    t_clean = clean_text(text)
+    p_clean = clean_text(phrase)
+
+    # fast exact path
+    if p_clean and p_clean in t_clean:
+        return True
+
+    t_words = tokenize(t_clean)
+    p_words = tokenize(p_clean)
+    if not t_words or not p_words:
+        return False
+
+    # 1-word phrase: compare each word
+    if len(p_words) == 1:
+        pw = p_words[0]
+        for tw in t_words:
+            if similarity(tw, pw) >= threshold:
+                return True
+        return False
+
+    # multi-word phrase: sliding window of equal length
+    n = len(p_words)
+    phrase_norm = " ".join(p_words)
+    for i in range(0, len(t_words) - n + 1):
+        window = " ".join(t_words[i : i + n])
+        if similarity(window, phrase_norm) >= threshold:
+            return True
+    return False
+
+def fuzzy_any(text: str, phrases: List[str], threshold: float = 0.86) -> bool:
+    return any(fuzzy_contains(text, p, threshold) for p in phrases)
+
 def extract_stock_code(text: str) -> Optional[str]:
     matches = re.findall(r"\b[A-Z]{1,5}-?[A-Z]{0,5}-?\d{2,4}\b", (text or "").upper())
     return matches[0] if matches else None
@@ -101,101 +143,54 @@ def normalize_for_product_match(text: str) -> str:
     return t
 
 # =========================
-# Question detectors
+# Detectors (typo-tolerant)
 # =========================
-def is_delivery_question(text: str) -> bool:
-    t = clean_text(text)
-    delivery_terms = ["arrive", "arrival", "delivery", "eta", "tracking", "track", "order", "dispatch", "shipped"]
-    return (("when" in t) and any(term in t for term in delivery_terms)) or any(
-        phrase in t for phrase in ["where is my order", "track my order", "order status"]
-    )
-
-def is_stock_code_request(text: str) -> bool:
-    t = clean_text(text)
-    triggers = ["product code", "stock code", "sku", "item code", "code for", "code of"]
-    return any(x in t for x in triggers)
-
-def is_minimum_order_question(text: str) -> bool:
-    t = clean_text(text)
-    triggers = [
-        "minimum order", "minimum spend", "minimum purchase",
-        "min order", "min spend", "order minimum", "minimum order price",
-        "minimum value", "minimum order value", "minimum spend value",
-        "minimum order amount", "minimum spend amount",
-        "minimum basket", "minimum basket value",
-        "minimum checkout", "minimum checkout value",
-        "what is the minimum", "whats the minimum", "what's the minimum",
-        "opening order minimum", "first order minimum", "repeat order minimum",
-        "starting order", "trade minimum", "trade order minimum",
-        "moq", "m o q", "minimum order quantity",
-    ]
-    return any(x in t for x in triggers)
-
-def is_production_question(text: str) -> bool:
-    t = clean_text(text)
-    phrases = [
-        "where are your toys produced",
-        "where are your toys made",
-        "where are your toys manufactured",
-        "where are the toys produced",
-        "where are the toys made",
-        "where are the toys manufactured",
-        "where are they produced",
-        "where are they made",
-        "where are they manufactured",
-    ]
-    if any(p in t for p in phrases):
-        return True
-    production_words = {"produced", "made", "manufactured"}
-    return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
-
-def is_eco_question(text: str) -> bool:
-    t = clean_text(text)
-    triggers = [
-        "eco", "eco friendly", "eco-friendly",
-        "sustainable", "sustainability",
-        "environment", "environmentally friendly",
-        "recycled", "recycle", "recyclable",
-        "plastic bottles", "fsc",
-        "keeleco", "keel eco"
-    ]
-    return any(x in t for x in triggers)
-
-def is_help_question(text: str) -> bool:
-    t = clean_text(text)
-    triggers = [
-        "what can you help with",
-        "what can you do",
-        "what do you do",
-        "how can you help",
-        "what can i ask",
-        "what can i ask you",
-        "what questions can i ask",
-        "what are you for",
-        "what can keelie help with",
-        "how do you work",
-        "help",
-    ]
-    return any(x in t for x in triggers)
-
 def is_greeting(text: str) -> bool:
-    t = clean_text(text)
-    greetings = {
-        "hi", "hello", "hey", "hiya", "yo",
-        "good morning", "good afternoon", "good evening"
-    }
-    return (t in greetings) or any(t.startswith(g + " ") for g in greetings)
+    phrases = ["hi", "hello", "hey", "hiya", "yo", "good morning", "good afternoon", "good evening"]
+    return fuzzy_any(text, phrases, threshold=0.80)
 
 def is_goodbye(text: str) -> bool:
-    t = clean_text(text)
-    goodbyes = {
-        "bye", "goodbye", "good bye", "see you", "see ya", "cya",
-        "thanks bye", "thank you bye", "cheers bye",
-        "ok bye", "okay bye"
-    }
-    if t in goodbyes:
+    phrases = ["bye", "goodbye", "good bye", "see you", "see ya", "cya", "thanks bye", "thank you bye", "cheers bye", "ok bye", "okay bye"]
+    return fuzzy_any(text, phrases, threshold=0.82)
+
+def is_help_question(text: str) -> bool:
+    triggers = [
+        "what can you help with", "what can you do", "what do you do",
+        "how can you help", "what can i ask", "what questions can i ask",
+        "what are you for", "how do you work", "help"
+    ]
+    return fuzzy_any(text, triggers, threshold=0.86)
+
+def is_stock_code_request(text: str) -> bool:
+    triggers = ["product code", "stock code", "sku", "item code", "code for", "code of"]
+    return fuzzy_any(text, triggers, threshold=0.84)
+
+def is_minimum_order_question(text: str) -> bool:
+    triggers = [
+        "minimum order", "minimum order value", "minimum spend", "min order",
+        "order minimum", "trade minimum", "moq", "minimum order quantity"
+    ]
+    return fuzzy_any(text, triggers, threshold=0.86)
+
+def is_delivery_question(text: str) -> bool:
+    triggers = ["delivery", "tracking", "track my order", "where is my order", "order status", "dispatch", "shipped", "eta", "estimated delivery", "delivery date"]
+    return fuzzy_any(text, triggers, threshold=0.86)
+
+def is_invoice_question(text: str) -> bool:
+    triggers = ["invoice", "invoice history", "download invoice", "copy invoice", "invoice copy", "past invoice"]
+    return fuzzy_any(text, triggers, threshold=0.86)
+
+def is_production_question(text: str) -> bool:
+    triggers = ["where are your toys made", "where are your toys produced", "where are your toys manufactured", "where are the toys made", "where are they made"]
+    if fuzzy_any(text, triggers, threshold=0.86):
         return True
-    return any(t.startswith(g + " ") for g in goodbyes) or any(t.endswith(" " + g) for g in goodbyes)
+    t = clean_text(text)
+    # loose fallback
+    return ("where" in t) and ("toy" in t or "toys" in t) and fuzzy_any(t, ["made", "produced", "manufactured"], threshold=0.86)
+
+def is_eco_question(text: str) -> bool:
+    triggers = ["keeleco", "eco", "eco friendly", "eco-friendly", "sustainable", "sustainability", "recycled", "recycle", "plastic bottles", "fsc"]
+    return fuzzy_any(text, triggers, threshold=0.86)
 
 # =========================
 # Responses
@@ -207,6 +202,21 @@ def minimum_order_response() -> str:
         f"• £{MIN_ORDER_REPEAT} for repeat buyers\n\n"
         "If you’re unsure whether you qualify as a first-time or repeat buyer, "
         "our customer service team can help:\n"
+        f"{CUSTOMER_SERVICE_URL}"
+    )
+
+def delivery_response() -> str:
+    return (
+        "For delivery updates, please check your order confirmation email. "
+        "It includes your estimated delivery date and tracking details if available.\n\n"
+        "If you need help, customer service can assist here:\n"
+        f"{CUSTOMER_SERVICE_URL}"
+    )
+
+def invoice_response() -> str:
+    return (
+        "To get a copy of an invoice, please use your trade account area (Invoice History), "
+        "or contact customer service if you need help accessing it:\n"
         f"{CUSTOMER_SERVICE_URL}"
     )
 
@@ -290,7 +300,7 @@ def privacy_warning() -> str:
     )
 
 # =========================
-# Frustration detection (session-only) — FIXED
+# Frustration detection (session-only) — fixed
 # =========================
 FRUSTRATION_STRIKES = 0
 LAST_USER_CLEAN = ""
@@ -320,7 +330,7 @@ def detect_frustration(user_text: str) -> bool:
 
     t = clean_text(t_raw)
 
-    # Never treat greetings / goodbyes / very short inputs as frustration
+    # never treat greetings/goodbyes/very short messages as frustration
     if is_greeting(t) or is_goodbye(t) or len(t) <= 3:
         return False
 
@@ -340,6 +350,7 @@ def detect_frustration(user_text: str) -> bool:
     now = time.time()
     if LAST_USER_CLEAN and (now - LAST_USER_TS) <= 40:
         if similarity(t, LAST_USER_CLEAN) >= 0.92:
+            # only count repeats if there's another frustration signal
             if "??" in t_raw or "!!" in t_raw or any(k in t for k in FRUSTRATION_KEYWORDS):
                 return True
 
@@ -414,9 +425,11 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
 
     t = clean_text(user_text)
 
+    # if they switch topic, abandon pending state
     if (
         is_minimum_order_question(t)
         or is_delivery_question(t)
+        or is_invoice_question(t)
         or is_eco_question(t)
         or is_production_question(t)
         or is_help_question(t)
@@ -426,6 +439,7 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
         _clear_pending_stock()
         return None
 
+    # numeric choice 1-3
     m = re.search(r"\b([1-3])\b", t)
     if m:
         idx = int(m.group(1)) - 1
@@ -436,6 +450,7 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
             _clear_pending_stock()
             return f"The stock code for **{product}** is **{code}**."
 
+    # if they typed a name, try to match among candidates
     best = None
     best_s = 0.0
     for row in PENDING_STOCK_CHOICES:
@@ -481,7 +496,7 @@ def lookup_stock_code(user_text: str) -> str:
         return _offer_stock_choices(PENDING_STOCK_CHOICES)
 
     _clear_pending_stock()
-    return "I’m not sure which product you mean. Could you please provide the exact product name (and size, if relevant)?"
+    return "I’m not sure which product you mean. Could you provide the exact product name (and size, if relevant)?"
 
 def lookup_product_by_code(code: str) -> Optional[str]:
     if not STOCK_ROWS:
@@ -518,7 +533,7 @@ def best_faq_answer(user_text: str, threshold: float = 0.55) -> Optional[str]:
     return best if best_score >= threshold else None
 
 # =========================
-# Intent system (priority-based)
+# Intent system (priority-based; typo-tolerant)
 # =========================
 @dataclass
 class Intent:
@@ -535,55 +550,12 @@ INTENTS = {
             f"{CUSTOMER_SERVICE_URL}"
         ],
     ),
-    "delivery_time": Intent(
-        priority=5,
-        keywords={
-            "when will it arrive": 6,
-            "when is it arriving": 6,
-            "when is it going to arrive": 7,
-            "going to arrive": 6,
-            "arrival": 4,
-            "eta": 5,
-            "estimated delivery": 5,
-            "delivery date": 5,
-            "arrive": 3,
-            "delivery": 4,
-            "where is my order": 6,
-            "track my order": 5,
-            "tracking": 4,
-            "order status": 5,
-            "dispatch": 4,
-            "shipped": 4,
-        },
-        responses=[
-            "For delivery updates, please check your order confirmation email. "
-            "It includes your estimated delivery date and tracking details if available."
-        ],
-    ),
-    "invoice_copy": Intent(
-        priority=6,
-        keywords={
-            "invoice": 5,
-            "last invoice": 7,
-            "copy of my invoice": 7,
-            "invoice copy": 6,
-            "invoice history": 6,
-            "past invoice": 6,
-            "order invoice": 5,
-            "download invoice": 6
-        },
-        responses=[
-            "To get a copy of an invoice, please use your trade account area (Invoice History), "
-            "or contact customer service if you need help accessing it:\n"
-            f"{CUSTOMER_SERVICE_URL}"
-        ],
-    ),
 }
 
 def intent_score(intent: Intent, cleaned_text: str) -> int:
     score = 0
     for k, w in intent.keywords.items():
-        if k in cleaned_text:
+        if fuzzy_contains(cleaned_text, k, threshold=0.88):
             score += w
     return score
 
@@ -599,7 +571,7 @@ def pick_intent(cleaned_text: str) -> Optional[str]:
     return scored[0][2]
 
 # =========================
-# Core responder — correct ordering
+# Core responder
 # =========================
 async def respond(user_text: str) -> str:
     cleaned = clean_text(user_text or "")
@@ -635,7 +607,7 @@ async def respond(user_text: str) -> str:
         reset_frustration()
         return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
 
-    # 5) Goodbye early
+    # 5) Goodbye early (+ feedback prompt)
     if is_goodbye(cleaned):
         _clear_pending_stock()
         reset_frustration()
@@ -645,9 +617,8 @@ async def respond(user_text: str) -> str:
             "Was I helpful?"
         )
 
-
     # Reset frustration on positive signals
-    if any(x in cleaned for x in ["thanks", "thank you", "cheers", "great", "perfect", "ok", "okay"]):
+    if fuzzy_any(cleaned, ["thanks", "thank you", "cheers", "great", "perfect", "ok", "okay"], threshold=0.86):
         reset_frustration()
 
     # Direct code -> product lookup
@@ -677,14 +648,17 @@ async def respond(user_text: str) -> str:
         reset_frustration()
         return KEELECO_OVERVIEW
 
-    # Delivery / tracking guidance
+    # Delivery / tracking
     if is_delivery_question(cleaned):
         _clear_pending_stock()
         reset_frustration()
-        return (
-            "For delivery updates, please check your order confirmation email. "
-            "It includes your estimated delivery date and tracking details if available."
-        )
+        return delivery_response()
+
+    # Invoices
+    if is_invoice_question(cleaned):
+        _clear_pending_stock()
+        reset_frustration()
+        return invoice_response()
 
     # Stock code request
     if is_stock_code_request(cleaned):
@@ -703,7 +677,7 @@ async def respond(user_text: str) -> str:
         reset_frustration()
         return faq
 
-    # Intent scoring fallback
+    # Intent scoring fallback (typo-tolerant)
     intent_name = pick_intent(cleaned)
     if intent_name:
         _clear_pending_stock()
