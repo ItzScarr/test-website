@@ -641,8 +641,10 @@ async def respond(user_text: str) -> str:
         reset_frustration()
         return (
             "Goodbye! 👋 If you need anything else later, I’m here.\n\n"
-            f"Customer service: {CUSTOMER_SERVICE_URL}"
+            f"Customer service: {CUSTOMER_SERVICE_URL}\n\n"
+            "Was I helpful?"
         )
+
 
     # Reset frustration on positive signals
     if any(x in cleaned for x in ["thanks", "thank you", "cheers", "great", "perfect", "ok", "okay"]):
