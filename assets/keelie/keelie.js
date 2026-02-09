@@ -698,7 +698,7 @@ function mountWidget() {
   showStatus("Loading assistant…");
 
   const py = document.createElement("py-script");
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=14`);
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=15`);
   document.body.appendChild(py);
 
   const failTimer = setTimeout(() => {
