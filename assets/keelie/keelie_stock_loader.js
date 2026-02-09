@@ -1,13 +1,3 @@
-// File: assets/keelie/keelie_stock_loader.js
-// ------------------------------------------------------------
-// Loads stock_codes.xlsx in the browser (via SheetJS) and exposes:
-//   - window.keelieStockRows: [{ product_name, stock_code }, ...]
-//   - window.keelieStockReady: Promise that resolves when done
-//
-// The Excel URL is passed from HTML as a data attribute:
-//   data-keelie-excel-url="/test-website/assets/keelie/stock_codes.xlsx"
-// ------------------------------------------------------------
-
 (function () {
   "use strict";
 
@@ -16,7 +6,6 @@
     ? scriptEl.getAttribute("data-keelie-excel-url")
     : "assets/keelie/stock_codes.xlsx";
 
-  // Ensure globals exist
   window.keelieStockRows = Array.isArray(window.keelieStockRows) ? window.keelieStockRows : [];
 
   function normKey(k) {
@@ -62,7 +51,6 @@
       window.keelieStockRows = rows;
       console.log(`Keelie: Loaded ${rows.length} stock rows from Excel.`);
 
-      // Light sanity warning (helps catch wrong path / empty file)
       if (rows.length > 0 && rows.length < 10) {
         console.warn(
           "Keelie: Loaded a very small number of stock rows. Check the Excel URL/contents:",
@@ -75,6 +63,5 @@
     }
   }
 
-  // Python will await this promise
   window.keelieStockReady = loadStockFromExcel();
 })();

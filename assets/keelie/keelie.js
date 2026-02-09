@@ -1,21 +1,19 @@
-// File: assets/keelie/keelie.js
+
 import "https://pyscript.net/releases/2024.9.2/core.js";
 
 const BASE_PATH = "assets/keelie";
 const CONTACT_URL = "https://www.keeltoys.com/contact-us/";
 
-// ==============================
-// Element helper
-// ==============================
+
+
 function el(html) {
   const t = document.createElement("template");
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
 
-// ==============================
-// Safe formatting helpers
-// ==============================
+
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -25,13 +23,14 @@ function escapeHtml(s) {
     .replace(/\'/g, "&#039;");
 }
 
+
 function linkify(safeHtmlText) {
-  // Convert http(s) URLs into clickable links.
-  // Input MUST already be escaped.
+
+
   const urlRe = /\bhttps?:\/\/[^\s<]+/gi;
 
   return safeHtmlText.replace(urlRe, (url) => {
-    // Trim common trailing punctuation
+
     const trimmed = url.replace(/[)\].,!?;:]+$/g, "");
     const trailing = url.slice(trimmed.length);
 
@@ -42,104 +41,17 @@ function linkify(safeHtmlText) {
   });
 }
 
+
 function formatKeelie(text) {
   let safe = escapeHtml(text);
 
-  // clickable links
   safe = linkify(safe);
 
-  // **bold**
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<span class="keelie-bold">$1</span>');
 
-  // newlines
   safe = safe.replace(/\n/g, "<br>");
 
   return safe;
-}
-
-// ==============================
-// NEW: Copy stock code helpers
-// ==============================
-function extractStockCodeFromText(text) {
-  // Looks for: "stock code ... is **ABC123**" or "... is ABC123"
-  // Keep it conservative so we only add Copy when we’re confident.
-  const t = String(text || "");
-
-  // Prefer bold **CODE**
-  let m = t.match(/stock code\b[\s\S]*?\bis\s*\*\*([A-Z0-9-]{3,})\*\*/i);
-  if (m && m[1]) return m[1].trim().toUpperCase();
-
-  // Fallback: non-bold code near "stock code ... is CODE"
-  m = t.match(/stock code\b[\s\S]*?\bis\s*([A-Z0-9-]{3,})\b/i);
-  if (m && m[1]) return m[1].trim().toUpperCase();
-
-  return null;
-}
-
-async function copyToClipboard(text) {
-  const value = String(text || "");
-  if (!value) return false;
-
-  // Modern clipboard API
-  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-    try {
-      await navigator.clipboard.writeText(value);
-      return true;
-    } catch (e) {
-      // fall back below
-    }
-  }
-
-  // Fallback: execCommand
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = value;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "fixed";
-    ta.style.left = "-9999px";
-    ta.style.top = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
-    return !!ok;
-  } catch (e) {
-    return false;
-  }
-}
-
-function attachCopyStockCode(bubbleEl, originalText) {
-  if (!bubbleEl || bubbleEl.querySelector(".keelie-copy")) return;
-
-  const code = extractStockCodeFromText(originalText);
-  if (!code) return; // only show when we’re confident it’s a stock-code answer
-
-  const row = document.createElement("div");
-  row.className = "keelie-copy";
-
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "keelie-copy-btn";
-  btn.setAttribute("aria-label", `Copy stock code ${code}`);
-  btn.textContent = "Copy stock code";
-
-  const hint = document.createElement("span");
-  hint.className = "keelie-copy-hint";
-  hint.textContent = code;
-
-  btn.addEventListener("click", async () => {
-    const ok = await copyToClipboard(code);
-    btn.disabled = true;
-    btn.textContent = ok ? "Copied ✓" : "Copy failed";
-    setTimeout(() => {
-      btn.disabled = false;
-      btn.textContent = "Copy stock code";
-    }, 1400);
-  });
-
-  row.appendChild(btn);
-  row.appendChild(hint);
-  bubbleEl.appendChild(row);
 }
 
 function mountWidget() {
@@ -152,7 +64,6 @@ function mountWidget() {
     </button>
   `);
 
-  // NOTE: autosuggest container is ABOVE input row (in-flow, no overlap)
   const panel = el(`
     <div class="keelie-panel" role="dialog" aria-label="Keelie chat" aria-modal="true">
       <div class="keelie-header">
@@ -194,64 +105,54 @@ function mountWidget() {
   document.body.appendChild(launcher);
   document.body.appendChild(panel);
 
-  // Pulse the launcher once shortly after load (subtle attention cue)
   setTimeout(() => launcher.classList.add("keelie-pulse"), 600);
   setTimeout(() => launcher.classList.remove("keelie-pulse"), 2200);
+
 
   const chatEl = panel.querySelector("#keelie-chat");
   const inputEl = panel.querySelector("#keelie-text");
   const sendBtn = panel.querySelector("#keelie-send");
   const closeBtn = panel.querySelector(".keelie-close");
 
-  // ==============================
-  // Accessibility: autosuggest ARIA wiring
-  // ==============================
-  try {
-    inputEl.setAttribute("aria-autocomplete", "list");
-    inputEl.setAttribute("aria-haspopup", "listbox");
-    inputEl.setAttribute("aria-expanded", "false");
-    inputEl.setAttribute("aria-controls", "keelie-suggest-list");
-  } catch (e) {}
-
-  // Status lines exist for fallback; Python also uses inline status bubbles via window.keelieShowStatus
   const thinkingEl = panel.querySelector("#keelie-thinking");
   const typingEl = panel.querySelector("#keelie-typing");
 
-  // ==============================
-  // Feedback buttons (👍/👎)
-  // ==============================
-  const FALLBACK_TRIGGER_RE = /I[’']m not able to help with that just now/i;
+
+
+
+
+
+
+
+
+  const FALLBACK_TRIGGER_RE = /I[’']m not able to help with that just now\./i;
 
   const FEEDBACK_TRIGGERS = [
-    // Stock codes / SKU answers
+
     /\bstock\s*code\b/i,
     /\bsku\b/i,
 
-    // Minimum order values
     /\bminimum\s+order\b/i,
     /\bminimum\s+order\s+values\b/i,
     /\b£\s*\d+/i,
 
-    // Invoices
     /\binvoice\b/i,
     /Invoice\s+History/i,
 
-    // Delivery / tracking
     /\btracking\b/i,
     /\border\s+confirmation\s+email\b/i,
     /\bdelivery\b/i,
 
-    // Keeleco / sustainability
     /\bkeeleco\b/i,
     /\brecycled\b/i,
 
-    // Production / where made
     /\bproduced\b/i,
     /\bmanufactur/i
   ];
 
   function isOnboardingPanel(text) {
     const t = String(text || "");
+
     return /\bI\s+can\s+help\b/i.test(t) && /\bWhat\s+would\s+you\s+like\s+to\s+ask\?\b/i.test(t);
   }
 
@@ -267,71 +168,66 @@ function mountWidget() {
   }
 
   function attachFeedback(bubbleEl, originalText) {
-    if (!bubbleEl || bubbleEl.querySelector(".keelie-feedback")) return;
+  if (!bubbleEl || bubbleEl.querySelector(".keelie-feedback")) return;
 
-    const row = document.createElement("div");
-    row.className = "keelie-feedback";
+  const row = document.createElement("div");
+  row.className = "keelie-feedback";
 
-    const label = document.createElement("span");
-    label.className = "keelie-feedback-label";
-    label.textContent = "Helpful?";
+  const label = document.createElement("span");
+  label.className = "keelie-feedback-label";
+  label.textContent = "Helpful?";
 
-    const yesBtn = document.createElement("button");
-    yesBtn.type = "button";
-    yesBtn.setAttribute("aria-label", "This was helpful");
-    yesBtn.textContent = "👍";
+  const yesBtn = document.createElement("button");
+  yesBtn.type = "button";
+  yesBtn.setAttribute("aria-label", "This was helpful");
+  yesBtn.textContent = "👍";
 
-    const noBtn = document.createElement("button");
-    noBtn.type = "button";
-    noBtn.setAttribute("aria-label", "This was not helpful");
-    noBtn.textContent = "👎";
+  const noBtn = document.createElement("button");
+  noBtn.type = "button";
+  noBtn.setAttribute("aria-label", "This was not helpful");
+  noBtn.textContent = "👎";
 
-    row.appendChild(label);
-    row.appendChild(yesBtn);
-    row.appendChild(noBtn);
-    bubbleEl.appendChild(row);
+  row.appendChild(label);
+  row.appendChild(yesBtn);
+  row.appendChild(noBtn);
+  bubbleEl.appendChild(row);
 
-    const acknowledge = (helpful) => {
-      yesBtn.disabled = true;
-      noBtn.disabled = true;
-      row.innerHTML = helpful
-        ? '<span class="keelie-feedback-thanks">Thanks!</span>'
-        : '<span class="keelie-feedback-thanks">Thanks — noted.</span>';
+  const acknowledge = (helpful) => {
+    yesBtn.disabled = true;
+    noBtn.disabled = true;
+    row.innerHTML = helpful
+      ? '<span class="keelie-feedback-thanks">Thanks!</span>'
+      : '<span class="keelie-feedback-thanks">Thanks — noted.</span>';
 
-      // Optional: store locally (no server)
-      try {
-        const key = "keelie_feedback";
-        let stored = JSON.parse(localStorage.getItem(key));
+    try {
+      const key = "keelie_feedback";
+      let stored = JSON.parse(localStorage.getItem(key));
 
-        if (!stored) stored = { helpful: 0, notHelpful: 0 };
+      if (!stored) stored = { helpful: 0, notHelpful: 0 };
 
-        // Migrate old array format -> counts object
-        if (Array.isArray(stored)) {
-          const counts = { helpful: 0, notHelpful: 0 };
-          stored.forEach(e => {
-            if (e && e.helpful === true) counts.helpful += 1;
-            if (e && e.helpful === false) counts.notHelpful += 1;
-          });
-          stored = counts;
-        }
+      if (Array.isArray(stored)) {
+        const counts = { helpful: 0, notHelpful: 0 };
+        stored.forEach(e => {
+          if (e && e.helpful === true) counts.helpful += 1;
+          if (e && e.helpful === false) counts.notHelpful += 1;
+        });
+        stored = counts;
+      }
 
-        if (helpful) stored.helpful += 1;
-        else stored.notHelpful += 1;
+      if (helpful) stored.helpful += 1;
+      else stored.notHelpful += 1;
 
-        localStorage.setItem(key, JSON.stringify(stored));
-      } catch (e) {}
-    };
+      localStorage.setItem(key, JSON.stringify(stored));
+    } catch (e) {}
 
-    yesBtn.addEventListener("click", () => acknowledge(true));
-    noBtn.addEventListener("click", () => acknowledge(false));
-  }
+  };
 
-  // ==============================
-  // Chat bubbles
-  // ==============================
-  let userHasMessaged = false; // set true after the first user send
+  yesBtn.addEventListener("click", () => acknowledge(true));
+  noBtn.addEventListener("click", () => acknowledge(false));
+}
 
-  function addBubble(who, text) {
+
+function addBubble(who, text) {
     const row = document.createElement("div");
     row.className = `keelie-msg ${who === "You" ? "you" : "bot"}`;
 
@@ -341,26 +237,17 @@ function mountWidget() {
 
     row.appendChild(bubble);
 
-    // Feedback
     if (shouldOfferFeedback(who, text)) {
       attachFeedback(bubble, text);
     }
-
-    // ✅ NEW: Copy stock code action when Keelie returns a stock code response
-    if (who === "Keelie") {
-      attachCopyStockCode(bubble, text);
-    }
-
     chatEl.appendChild(row);
     chatEl.scrollTop = chatEl.scrollHeight;
   }
 
-  // Expose to Python runtime
   window.keelieAddBubble = addBubble;
   window.keelieGetInput = () => inputEl.value || "";
   window.keelieClearInput = () => { inputEl.value = ""; };
 
-  // Inline status bubble (used by Python)
   let statusBubble = null;
 
   function showStatus(text) {
@@ -387,19 +274,13 @@ function mountWidget() {
   window.keelieShowStatus = showStatus;
   window.keelieClearStatus = clearStatus;
 
-  // ==============================
-  // Autosuggest
-  // ==============================
+
+
+
+
   const suggestWrap = panel.querySelector("#keelie-suggest");
   const suggestList = panel.querySelector("#keelie-suggest-list");
   const SUGGEST_ENABLED = !!(suggestWrap && suggestList);
-
-  if (SUGGEST_ENABLED) {
-    try {
-      suggestList.setAttribute("role", "listbox");
-      suggestList.setAttribute("aria-label", "Suggestions");
-    } catch (e) {}
-  }
 
   const SUGGESTIONS = [
     "What’s the minimum order value?",
@@ -446,11 +327,6 @@ function mountWidget() {
     activeSuggestIndex = -1;
     currentSuggestItems = [];
     panel.classList.remove("is-suggesting");
-
-    try {
-      inputEl.setAttribute("aria-expanded", "false");
-      inputEl.removeAttribute("aria-activedescendant");
-    } catch (e) {}
   }
 
   function setActiveSuggest(nextIndex) {
@@ -462,16 +338,7 @@ function mountWidget() {
     children.forEach((el, i) => {
       if (i === activeSuggestIndex) el.classList.add("is-active");
       else el.classList.remove("is-active");
-
-      try {
-        el.setAttribute("aria-selected", i === activeSuggestIndex ? "true" : "false");
-      } catch (e) {}
     });
-
-    try {
-      const activeEl = children[activeSuggestIndex];
-      if (activeEl && activeEl.id) inputEl.setAttribute("aria-activedescendant", activeEl.id);
-    } catch (e) {}
   }
 
   function acceptActiveSuggest() {
@@ -501,20 +368,18 @@ function mountWidget() {
 
     suggestList.innerHTML = "";
 
-    items.forEach((text, idx) => {
+    items.forEach((text) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "keelie-suggest-item";
       btn.textContent = text;
 
-      btn.setAttribute("role", "option");
-      btn.setAttribute("aria-selected", "false");
-      btn.id = `keelie-suggest-opt-${idx}`;
 
       btn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         inputEl.value = text;
         hideSuggest();
+
         setTimeout(() => sendBtn.click(), 0);
       });
 
@@ -523,10 +388,6 @@ function mountWidget() {
 
     suggestWrap.style.display = "block";
     panel.classList.add("is-suggesting");
-
-    try {
-      inputEl.setAttribute("aria-expanded", "true");
-    } catch (e) {}
   }
 
   function updateSuggest() {
@@ -549,9 +410,8 @@ function mountWidget() {
     renderSuggest(ranked);
   }
 
-  // ==============================
-  // Panel open/close
-  // ==============================
+
+
   let lastFocused = null;
 
   function openPanel() {
@@ -592,16 +452,19 @@ function mountWidget() {
     hideSuggest();
   });
 
-  // ==============================
-  // Send flow + rate limiting
-  // ==============================
+
+
   let pythonReady = false;
+  let userHasMessaged = false; // set true after the first user send
 
-  const RATE_WINDOW_MS = 8000;
-  const RATE_MAX_SENDS = 4;
-  const COOLDOWN_MS = 10000;
 
-  let recentSends = [];
+
+
+  const RATE_WINDOW_MS = 8000;   // look back 8 seconds
+  const RATE_MAX_SENDS = 4;      // allow up to 4 sends in that window
+  const COOLDOWN_MS = 10000;     // lock input for 10 seconds if exceeded
+
+  let recentSends = [];          // timestamps (ms)
   let cooldownUntil = 0;
 
   function inCooldown() {
@@ -610,6 +473,7 @@ function mountWidget() {
 
   function startCooldown() {
     cooldownUntil = Date.now() + COOLDOWN_MS;
+
     inputEl.disabled = true;
     sendBtn.disabled = true;
 
@@ -626,6 +490,7 @@ function mountWidget() {
 
   function registerSendOrCooldown() {
     const now = Date.now();
+
     if (now < cooldownUntil) return false;
 
     recentSends = recentSends.filter(t => now - t <= RATE_WINDOW_MS);
@@ -639,12 +504,12 @@ function mountWidget() {
     return true;
   }
 
+
   async function doSend() {
     hideSuggest();
 
     const msg = (inputEl.value || "").trim();
     if (!msg) return;
-
     userHasMessaged = true;
 
     if (!registerSendOrCooldown()) return;
@@ -661,6 +526,7 @@ function mountWidget() {
   inputEl.addEventListener("input", () => updateSuggest());
 
   inputEl.addEventListener("keydown", (e) => {
+
     if (SUGGEST_ENABLED && suggestWrap.style.display !== "none") {
       const max = currentSuggestItems.length - 1;
 
@@ -679,7 +545,9 @@ function mountWidget() {
       }
 
       if (e.key === "Enter") {
+
         if (acceptActiveSuggest()) return;
+
         e.preventDefault();
         doSend();
         return;
@@ -692,13 +560,13 @@ function mountWidget() {
     }
   });
 
-  // ==============================
-  // Boot + Python runtime
-  // ==============================
+
+
   showStatus("Loading assistant…");
 
   const py = document.createElement("py-script");
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=15`);
+
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=12`);
   document.body.appendChild(py);
 
   const failTimer = setTimeout(() => {
@@ -734,5 +602,4 @@ function mountWidget() {
     }
   }, 250);
 }
-
 mountWidget();

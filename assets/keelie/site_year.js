@@ -1,5 +1,3 @@
-// File: assets/site_year.js
-// Small helper so we don't need inline scripts (CSP-friendly).
 (function () {
   "use strict";
   const el = document.getElementById("year");

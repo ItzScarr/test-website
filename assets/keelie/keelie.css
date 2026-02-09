@@ -1,10 +1,4 @@
-/* =========================================================
-   Keelie Chat Widget — Simplified Full Stylesheet
-   File: assets/keelie/keelie.css
-   Notes:
-   - Autosuggest OVERLAYS the chat (never covers input)
-   - Footer/input never moves
-   ========================================================= */
+
 
 :root{
   --keelie-brand:#c5162e;
@@ -20,9 +14,7 @@
   --keelie-font:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 }
 
-/* ==============================
-   Launcher
-   ============================== */
+
 .keelie-launcher{
   position:fixed;
   right:18px;
@@ -39,15 +31,13 @@
   z-index:9999;
 }
 
-/* ==============================
-   Panel
-   ============================== */
+
 .keelie-panel{
   position:fixed;
   right:18px;
   bottom:86px;
-  width:min(420px, calc(100vw - 36px));    /* bigger */
-  height:min(620px, calc(100vh - 120px));  /* bigger */
+  width:min(420px, calc(100vw - 36px));    
+  height:min(620px, calc(100vh - 120px));  
   background:var(--keelie-surface);
   border:1px solid var(--keelie-border);
   border-radius:var(--keelie-radius);
@@ -67,9 +57,7 @@
   pointer-events:auto;
 }
 
-/* ==============================
-   Header
-   ============================== */
+
 .keelie-header{
   display:flex;
   align-items:center;
@@ -123,19 +111,15 @@
 }
 .keelie-close:hover{ background:#f3f4f6; }
 
-/* ==============================
-   Chat area
-   ============================== */
+
 .keelie-chat{
-  height:calc(100% - 148px); /* header + footer */
+  height:calc(100% - 148px); 
   padding:12px;
   overflow:auto;
   background:#fafafa;
 }
 
-/* ==============================
-   Messages
-   ============================== */
+
 .keelie-msg{ display:flex; margin:8px 0; }
 .keelie-msg.bot{ justify-content:flex-start; }
 .keelie-msg.you{ justify-content:flex-end; }
@@ -164,9 +148,7 @@
 
 .keelie-bubble .keelie-bold{ font-weight:600; }
 
-/* ==============================
-   Footer (stable input)
-   ============================== */
+
 .keelie-footer{
   position:relative;
   padding:10px 12px 12px;
@@ -221,18 +203,14 @@
   color:var(--keelie-muted);
 }
 
-/* =====================================================
-   Autosuggest OVERLAY (overlaps chat, never input)
-   - Suggestions are absolutely positioned inside footer,
-     anchored above the input row.
-   ===================================================== */
+
 .keelie-suggest{
   position:absolute;
   left:12px;
   right:12px;
-  bottom:64px;        /* sits above input row */
+  bottom:64px;        
   z-index:10000;
-  display:none;       /* JS toggles */
+  display:none;       
 }
 
 .keelie-suggest-list{
@@ -266,24 +244,22 @@
   background:rgba(17,24,39,.04);
 }
 
-/* Hide hint entirely (clutter) */
+
 .keelie-suggest-hint{ display:none !important; }
 
-/* When suggesting: keep chat visible but subdued */
+
 .keelie-panel.is-suggesting .keelie-chat{
   opacity:0.25;
   filter:blur(0.6px);
 }
 
-/* Optional: hide footer clutter during suggest */
+
 .keelie-panel.is-suggesting .keelie-privacy,
 .keelie-panel.is-suggesting .keelie-status{
   display:none !important;
 }
 
-/* ==============================
-   Mobile tweaks
-   ============================== */
+
 @media (max-width:420px){
   .keelie-panel{
     right:12px;
@@ -301,11 +277,9 @@
 }
 
 
-/* ==============================
-   Micro-animations (Keelie)
-   ============================== */
 
-/* Panel open/close: subtle pop + fade */
+
+
 .keelie-panel{
   transform: translateY(10px) scale(0.98);
   opacity: 0;
@@ -319,7 +293,7 @@
   pointer-events: auto;
 }
 
-/* Message bubble entrance */
+
 @keyframes keelieIn {
   from { transform: translateY(6px); opacity: 0; }
   to   { transform: translateY(0);   opacity: 1; }
@@ -328,7 +302,7 @@
   animation: keelieIn 160ms ease-out;
 }
 
-/* Launcher pulse (applied once on load via JS class) */
+
 @keyframes keeliePulse {
   0% { transform: scale(1); }
   50% { transform: scale(1.07); }
@@ -338,7 +312,7 @@
   animation: keeliePulse 600ms ease-in-out 2;
 }
 
-/* Typing dots (used in status bubble) */
+
 .keelie-dots{
   display: inline-flex;
   gap: 2px;
@@ -361,15 +335,13 @@
   50%      { opacity: 1;    transform: translateY(-1px); }
 }
 
-/* Respect reduced motion preferences */
+
 @media (prefers-reduced-motion: reduce){
   * { animation: none !important; transition: none !important; }
 }
 
 
-/* ==============================
-   Keelie feedback (👍/👎)
-   ============================== */
+
 .keelie-feedback{
   display:flex;
   align-items:center;
@@ -400,7 +372,7 @@
 }
 
 
-/* Links inside bubbles */
+
 .keelie-bubble a{
   color: var(--keelie-brand-dark);
   font-weight: 700;
@@ -408,32 +380,3 @@
   text-underline-offset: 3px;
 }
 .keelie-bubble a:hover{ opacity: .85; }
-/* Copy stock code action */
-.keelie-copy{
-  margin-top: 10px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.keelie-copy-btn{
-  font: inherit;
-  border: 1px solid rgba(0,0,0,.12);
-  background: #fff;
-  padding: 7px 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 800;
-  font-size: 12px;
-}
-
-.keelie-copy-btn:disabled{
-  opacity: .65;
-  cursor: default;
-}
-
-.keelie-copy-hint{
-  font-size: 12px;
-  opacity: .7;
-}

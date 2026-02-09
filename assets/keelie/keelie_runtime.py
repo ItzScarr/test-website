@@ -1,31 +1,19 @@
-# File: assets/keelie/keelie_runtime.py
-# NOTE: Paste this file as-is. Do NOT include any ``` backticks in the .py file.
-
 import re
 import random
-import time
+import asyncio
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from js import window
 
-# =========================
-# Bot identity & links
-# =========================
 BOT_NAME = "Keelie"
 COMPANY_NAME = "Keel Toys"
 CUSTOMER_SERVICE_URL = "https://www.keeltoys.com/contact-us/"
 
-# =========================
-# Minimum order values
-# =========================
 MIN_ORDER_FIRST = 500
 MIN_ORDER_REPEAT = 250
 
-# =========================
-# Manufacturing info
-# =========================
 PRODUCTION_INFO = (
     "Our toys are produced across a small number of trusted manufacturing partners:\n"
     "• 95% in China\n"
@@ -33,9 +21,6 @@ PRODUCTION_INFO = (
     "• 2% in Cambodia"
 )
 
-# =========================
-# Help / capabilities overview
-# =========================
 HELP_OVERVIEW = (
     "I can help with:\n"
     "• **Minimum order values** (e.g. “minimum order value”)\n"
@@ -47,9 +32,6 @@ HELP_OVERVIEW = (
     "What would you like to ask?"
 )
 
-# =========================
-# Eco / sustainability overview (Keeleco)
-# =========================
 KEELECO_OVERVIEW = (
     "Keeleco® is our eco-focused soft toy range made using **100% recycled polyester**.\n\n"
     "Key facts:\n"
@@ -61,21 +43,9 @@ KEELECO_OVERVIEW = (
     "If you tell me which Keeleco sub-range you mean (e.g. *Keeleco Dinosaurs*), I can share details."
 )
 
-# =========================
-# Global state
-# =========================
-STOCK_ROWS: List[Dict[str, str]] = []
-
 PENDING_STOCK_LOOKUP = False
-PENDING_STOCK_CHOICES: List[Dict[str, str]] = []
-PENDING_STOCK_QUERY: str = ""
+STOCK_ROWS: List[Dict[str, str]] = []  # loaded from JS Excel conversion
 
-STOCK_HIGH = 0.75
-STOCK_MED = 0.55
-
-# =========================
-# Basic text helpers
-# =========================
 def clean_text(text: str) -> str:
     text = (text or "").lower()
     text = re.sub(r"[^a-z0-9\s&-]", " ", text)
@@ -85,140 +55,26 @@ def clean_text(text: str) -> str:
 def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
-def tokenize(text: str) -> List[str]:
-    return [t for t in clean_text(text).split() if t]
-
-# =========================
-# Robust typo tolerance (token-level)
-# =========================
-def squash_repeats(word: str) -> str:
-    # hellooo -> helloo, hiiii -> hii
-    return re.sub(r"(.)\1{2,}", r"\1\1", word)
-
-def levenshtein(a: str, b: str) -> int:
-    if a == b:
-        return 0
-    if not a:
-        return len(b)
-    if not b:
-        return len(a)
-
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a, start=1):
-        cur = [i]
-        for j, cb in enumerate(b, start=1):
-            ins = cur[j - 1] + 1
-            dele = prev[j] + 1
-            sub = prev[j - 1] + (0 if ca == cb else 1)
-            cur.append(min(ins, dele, sub))
-        prev = cur
-    return prev[-1]
-
-def token_close(a: str, b: str) -> bool:
-    if a == b:
-        return True
-    a = a.strip()
-    b = b.strip()
-    if not a or not b:
-        return False
-
-    # short words are common and typo-prone
-    la, lb = len(a), len(b)
-    if la <= 3 or lb <= 3:
-        return levenshtein(a, b) <= 1
-    if la <= 6 or lb <= 6:
-        return levenshtein(a, b) <= 2
-    return levenshtein(a, b) <= 2
-
-COMMON_TOKEN_FIXES = {
-    # stock/code
-    "stcok": "stock",
-    "stok": "stock",
-    "sotck": "stock",
-    "stokc": "stock",
-    "coed": "code",
-    "cod": "code",
-    "kode": "code",
-    "skuu": "sku",
-    # delivery/tracking
-    "delivary": "delivery",
-    "delvery": "delivery",
-    "delveryy": "delivery",
-    "traking": "tracking",
-    "trakking": "tracking",
-    "trak": "track",
-    "trakc": "track",
-    # invoice
-    "inovice": "invoice",
-    "invioce": "invoice",
-    "invoie": "invoice",
-    # keeleco/recycled
-    "keelco": "keeleco",
-    "keelcco": "keeleco",
-    "keel-eco": "keeleco",
-    "recyled": "recycled",
-    "recyceld": "recycled",
-    # moq/minimum order
-    "minimun": "minimum",
-    "minumum": "minimum",
-    "ordr": "order",
-    "oder": "order",
-    "valeu": "value",
-    "amout": "amount",
-    # where made
-    "wher": "where",
-    "whre": "where",
-    "mad": "made",
-    "mdae": "made",
-    "manufactuered": "manufactured",
-    "manufactered": "manufactured",
-}
-
-def normalized_tokens(text: str) -> List[str]:
-    raw = tokenize(text)
-    out: List[str] = []
-    for w in raw:
-        w = squash_repeats(w)
-        w = COMMON_TOKEN_FIXES.get(w, w)
-        out.append(w)
-    return out
-
-def has_token(tokens: List[str], target: str) -> bool:
-    target = squash_repeats(clean_text(target))
-    target = COMMON_TOKEN_FIXES.get(target, target)
-    for t in tokens:
-        if token_close(t, target):
-            return True
-    return False
-
-def score_intent_tokens(text: str, must: List[str], any_of: Optional[List[str]] = None) -> int:
-    """
-    Score intent based on presence of concept tokens (typo-tolerant).
-    must tokens add +2 each, any_of tokens add +1 each.
-    """
-    any_of = any_of or []
-    toks = normalized_tokens(text)
-
-    score = 0
-    for m in must:
-        if has_token(toks, m):
-            score += 2
-    for a in any_of:
-        if has_token(toks, a):
-            score += 1
-    return score
-
-# =========================
-# Stock helpers
-# =========================
 def extract_stock_code(text: str) -> Optional[str]:
     matches = re.findall(r"\b[A-Z]{1,5}-?[A-Z]{0,5}-?\d{2,4}\b", (text or "").upper())
     return matches[0] if matches else None
 
+def is_delivery_question(text: str) -> bool:
+    t = clean_text(text)
+    delivery_terms = ["arrive", "arrival", "delivery", "eta", "tracking", "track", "order", "dispatch", "shipped"]
+    return (("when" in t) and any(term in t for term in delivery_terms)) or any(
+        phrase in t for phrase in ["where is my order", "track my order", "order status"]
+    )
+
+def is_stock_code_request(text: str) -> bool:
+    t = clean_text(text)
+    triggers = ["product code", "stock code", "sku", "item code", "code for", "code of"]
+    return any(x in t for x in triggers)
+
 def normalize_for_product_match(text: str) -> str:
     t = clean_text(text)
     junk_phrases = [
-        "can you tell me", "could you tell me", "please", "what is", "whats", "what's",
+        "can you tell me", "could you tell me", "please", "what is", "whats",
         "the product code", "product code", "stock code", "item code", "sku",
         "code for", "code of"
     ]
@@ -228,59 +84,104 @@ def normalize_for_product_match(text: str) -> str:
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
-# =========================
-# Typo-tolerant topic detectors
-# =========================
-def is_greeting(text: str) -> bool:
-    t = clean_text(text)
-    # stretched greetings: hiiii, heyyy, helloo
-    if re.fullmatch(r"h+i+", t) or re.fullmatch(r"he+y+", t) or re.fullmatch(r"hel+o+", t):
-        return True
-    return score_intent_tokens(text, must=["hi"], any_of=["hello", "hey", "hiya", "yo", "morning", "afternoon", "evening"]) >= 2 or \
-           score_intent_tokens(text, must=["hello"], any_of=["hi", "hey"]) >= 2 or \
-           score_intent_tokens(text, must=["hey"], any_of=["hi", "hello"]) >= 2
-
-def is_goodbye(text: str) -> bool:
-    t = clean_text(text)
-    if re.fullmatch(r"by+e+", t) or re.fullmatch(r"good+by+e+", t):
-        return True
-    return score_intent_tokens(text, must=["bye"], any_of=["goodbye", "cya", "thanks", "thank", "cheers", "see"]) >= 2 or \
-           score_intent_tokens(text, must=["goodbye"], any_of=["bye"]) >= 2
-
-def is_help_question(text: str) -> bool:
-    return score_intent_tokens(text, must=["help"], any_of=["can", "do", "ask", "questions"]) >= 2
-
-def is_stock_code_request(text: str) -> bool:
-    # allow "sku" alone, or "stock+code"
-    s1 = score_intent_tokens(text, must=["stock", "code"], any_of=["sku", "item", "product"])
-    s2 = score_intent_tokens(text, must=["sku"], any_of=["code", "stock"])
-    return max(s1, s2) >= 3
-
 def is_minimum_order_question(text: str) -> bool:
-    s1 = score_intent_tokens(text, must=["minimum", "order"], any_of=["value", "moq", "spend", "amount", "purchase"])
-    s2 = score_intent_tokens(text, must=["moq"], any_of=["minimum", "order", "value"])
-    return max(s1, s2) >= 3
+    t = clean_text(text)
+    triggers = [
+        "minimum order", "minimum spend", "minimum purchase",
+        "min order", "min spend", "order minimum", "minimum order price",
 
-def is_delivery_question(text: str) -> bool:
-    s1 = score_intent_tokens(text, must=["delivery"], any_of=["tracking", "track", "order", "dispatch", "shipped", "eta", "arrive"])
-    s2 = score_intent_tokens(text, must=["tracking"], any_of=["order", "delivery", "track"])
-    return max(s1, s2) >= 3
+        "minimum value", "minimum order value", "minimum spend value",
+        "minimum order amount", "minimum spend amount",
+        "minimum basket", "minimum basket value",
+        "minimum checkout", "minimum checkout value",
+        "what is the minimum", "whats the minimum", "what's the minimum",
+        "opening order minimum", "first order minimum", "repeat order minimum",
+        "starting order", "trade minimum", "trade order minimum",
 
-def is_invoice_question(text: str) -> bool:
-    return score_intent_tokens(text, must=["invoice"], any_of=["download", "copy", "history", "past"]) >= 2
-
-def is_eco_question(text: str) -> bool:
-    s1 = score_intent_tokens(text, must=["keeleco"], any_of=["recycled", "eco", "sustainable", "fsc", "polyester"])
-    s2 = score_intent_tokens(text, must=["recycled"], any_of=["eco", "sustainable", "keeleco"])
-    return max(s1, s2) >= 2
+        "moq", "m o q", "minimum order quantity",
+    ]
+    return any(x in t for x in triggers)
 
 def is_production_question(text: str) -> bool:
-    s = score_intent_tokens(text, must=["where"], any_of=["made", "produce", "produced", "manufactured", "factory", "manufacturing"])
-    return s >= 2
+    t = clean_text(text)
+    phrases = [
+        "where are your toys produced",
+        "where are your toys made",
+        "where are your toys manufactured",
+        "where are the toys produced",
+        "where are the toys made",
+        "where are the toys manufactured",
+        "where are they produced",
+        "where are they made",
+        "where are they manufactured",
+    ]
+    if any(p in t for p in phrases):
+        return True
+    production_words = {"produced", "made", "manufactured"}
+    return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
 
-# =========================
-# Responses
-# =========================
+def is_eco_question(text: str) -> bool:
+    t = clean_text(text)
+    triggers = [
+        "eco", "eco friendly", "eco-friendly",
+        "sustainable", "sustainability",
+        "environment", "environmentally friendly",
+        "recycled", "recycle", "recyclable",
+        "plastic bottles", "fsc",
+        "keeleco", "keel eco"
+    ]
+    return any(x in t for x in triggers)
+
+
+
+EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
+PHONE_RE = re.compile(r"(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d")
+ORDER_CUE_RE = re.compile(r"\b(order|invoice|account|ref|reference|tracking|awb|consignment)\b", re.I)
+LONG_DIGITS_RE = re.compile(r"\b\d{6,}\b")
+
+def contains_personal_info(text: str) -> bool:
+    t = text or ""
+    if EMAIL_RE.search(t):
+        return True
+    if PHONE_RE.search(t):
+        return True
+    if ORDER_CUE_RE.search(t) and LONG_DIGITS_RE.search(t):
+        return True
+    return False
+
+def privacy_warning() -> str:
+    return (
+        "For your privacy, please don’t share personal or account details here "
+        "(such as email addresses, phone numbers, or order/invoice references).\n\n"
+        "Our customer service team can help you securely here:\n"
+        f"{CUSTOMER_SERVICE_URL}"
+    )
+
+def is_help_question(text: str) -> bool:
+    t = clean_text(text)
+    triggers = [
+        "what can you help with",
+        "what can you do",
+        "what do you do",
+        "how can you help",
+        "what can i ask",
+        "what can i ask you",
+        "what questions can i ask",
+        "what are you for",
+        "what can keelie help with",
+        "how do you work",
+    ]
+    return any(x in t for x in triggers)
+
+
+def is_greeting(text: str) -> bool:
+    t = clean_text(text)
+    greetings = {
+        "hi", "hello", "hey", "hiya", "yo",
+        "good morning", "good afternoon", "good evening"
+    }
+    return (t in greetings) or any(t.startswith(g + " ") for g in greetings)
+
 def minimum_order_response() -> str:
     return (
         "Our minimum order values are:\n"
@@ -291,197 +192,6 @@ def minimum_order_response() -> str:
         f"{CUSTOMER_SERVICE_URL}"
     )
 
-def delivery_response() -> str:
-    return (
-        "For delivery updates, please check your order confirmation email. "
-        "It includes your estimated delivery date and tracking details if available.\n\n"
-        "If you need help, customer service can assist here:\n"
-        f"{CUSTOMER_SERVICE_URL}"
-    )
-
-def invoice_response() -> str:
-    return (
-        "To get a copy of an invoice, please use your trade account area (Invoice History), "
-        "or contact customer service if you need help accessing it:\n"
-        f"{CUSTOMER_SERVICE_URL}"
-    )
-
-def fallback_response() -> str:
-    return (
-        "I’m not able to help with that just now.\n\n"
-        "Right now I *can* help with:\n"
-        "• **Minimum order values** (try: “What’s the minimum order value?”)\n"
-        "• **Stock codes / SKUs** (try: “Stock code for Polar Bear Plush 20cm”)\n"
-        "• **Keeleco® recycled materials & sustainability** (try: “Tell me about Keeleco”)\n"
-        "• **Where our toys are made** (try: “Where are your toys produced?”)\n"
-        "• **Delivery & tracking guidance** (try: “How do I track my order?”)\n"
-        "• **Invoices** (try: “How do I download an invoice?”)\n\n"
-        "Which of those do you need?"
-    )
-
-def near_miss_prompt(user_text: str) -> Optional[str]:
-    scores = [
-        ("stock code / SKU", score_intent_tokens(user_text, ["stock", "code"], ["sku", "item", "product"]) ),
-        ("minimum order value (MOQ)", score_intent_tokens(user_text, ["minimum", "order"], ["value", "moq", "spend"]) ),
-        ("delivery / tracking", score_intent_tokens(user_text, ["delivery"], ["tracking", "order", "eta", "arrive"]) ),
-        ("invoices", score_intent_tokens(user_text, ["invoice"], ["download", "copy", "history"]) ),
-        ("Keeleco / recycled materials", score_intent_tokens(user_text, ["keeleco"], ["recycled", "eco", "sustainable"]) ),
-        ("where toys are made", score_intent_tokens(user_text, ["where"], ["made", "produced", "manufactured"]) ),
-    ]
-    scores.sort(key=lambda x: x[1], reverse=True)
-    top, top_s = scores[0]
-    second, second_s = scores[1]
-    if top_s >= 2:
-        if top_s == second_s and second_s >= 2:
-            return f"Did you mean **{top}** or **{second}**?\n\nReply with the topic name and I’ll help."
-        return f"Just to check — are you asking about **{top}**?\n\nReply with yes, or tell me the correct topic."
-    return None
-
-# =========================
-# Privacy guardrail (expanded)
-# =========================
-EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
-PHONE_RE = re.compile(r"(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d")
-UK_POSTCODE_RE = re.compile(r"\b(?:GIR\s?0AA|(?:[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}))\b", re.I)
-
-SENSITIVE_CUE_RE = re.compile(
-    r"\b("
-    r"order|invoice|account|ref|reference|tracking|track(?:ing)?\s*(?:no|number)?|"
-    r"awb|consignment|waybill|dispatch|delivery|"
-    r"purchase\s+order|po\s*number|p\.o\.|"
-    r"sales\s+order|so\s*number|return|rma"
-    r")\b",
-    re.I
-)
-
-ORDER_HASH_RE = re.compile(r"\b(?:order\s*)?#\s*([A-Z0-9-]{5,})\b", re.I)
-INVOICE_CODE_RE = re.compile(r"\b(?:inv|invoice)\s*[:#]?\s*([A-Z0-9-]{5,})\b", re.I)
-PO_SO_RE = re.compile(r"\b(?:po|p\.o\.|so|sales\s*order)\s*[:#]?\s*([A-Z0-9-]{4,})\b", re.I)
-
-UPS_1Z_RE = re.compile(r"\b1Z[0-9A-Z]{8,}\b", re.I)
-LONG_ALNUM_RE = re.compile(r"\b[A-Z0-9]{10,}\b", re.I)
-LONG_DIGITS_RE = re.compile(r"\b\d{6,}\b")
-
-STREET_WORD_RE = re.compile(
-    r"\b(road|rd|street|st|lane|ln|avenue|ave|drive|dr|close|cl|way|"
-    r"court|ct|crescent|cres|place|pl|park|gardens?|grove|terrace|ter)\b",
-    re.I
-)
-HOUSE_NUM_RE = re.compile(r"\b\d{1,4}[A-Z]?\b")
-
-def contains_personal_info(text: str) -> bool:
-    t = text or ""
-    if not t.strip():
-        return False
-
-    if EMAIL_RE.search(t):
-        return True
-    if PHONE_RE.search(t):
-        return True
-    if UK_POSTCODE_RE.search(t):
-        return True
-    if HOUSE_NUM_RE.search(t) and STREET_WORD_RE.search(t):
-        return True
-
-    if SENSITIVE_CUE_RE.search(t):
-        if ORDER_HASH_RE.search(t) or INVOICE_CODE_RE.search(t) or PO_SO_RE.search(t):
-            return True
-        if UPS_1Z_RE.search(t):
-            return True
-        if LONG_DIGITS_RE.search(t):
-            return True
-        if LONG_ALNUM_RE.search(t):
-            return True
-
-    return False
-
-def privacy_warning() -> str:
-    return (
-        "For your privacy, please don’t share personal or account details here "
-        "(such as email addresses, phone numbers, delivery addresses, or order/invoice references).\n\n"
-        "Our customer service team can help you securely here:\n"
-        f"{CUSTOMER_SERVICE_URL}"
-    )
-
-# =========================
-# Frustration detection (session-only)
-# =========================
-FRUSTRATION_STRIKES = 0
-LAST_USER_CLEAN = ""
-LAST_USER_TS = 0.0
-
-FRUSTRATION_KEYWORDS = [
-    "wrong", "incorrect", "not correct", "doesn't work", "doesnt work",
-    "useless", "rubbish", "terrible", "bad", "awful",
-    "not helpful", "unhelpful", "waste of time",
-    "annoying", "frustrated", "frustrating", "ridiculous",
-    "stop", "nonsense"
-]
-
-def register_message_for_repeat_check(user_text: str) -> None:
-    global LAST_USER_CLEAN, LAST_USER_TS
-    LAST_USER_CLEAN = clean_text(user_text or "")
-    LAST_USER_TS = time.time()
-
-def reset_frustration() -> None:
-    global FRUSTRATION_STRIKES
-    FRUSTRATION_STRIKES = 0
-
-def detect_frustration(user_text: str) -> bool:
-    t_raw = (user_text or "").strip()
-    if not t_raw:
-        return False
-
-    t = clean_text(t_raw)
-
-    # never treat greetings/goodbyes/very short messages as frustration
-    if is_greeting(t) or is_goodbye(t) or len(t) <= 3:
-        return False
-
-    if any(k in t for k in FRUSTRATION_KEYWORDS):
-        return True
-
-    if "??" in t_raw or "!!" in t_raw:
-        return True
-
-    letters = [c for c in t_raw if c.isalpha()]
-    if len(letters) >= 8:
-        upper_ratio = sum(1 for c in letters if c.isupper()) / max(1, len(letters))
-        if upper_ratio >= 0.85:
-            return True
-
-    global LAST_USER_CLEAN, LAST_USER_TS
-    now = time.time()
-    if LAST_USER_CLEAN and (now - LAST_USER_TS) <= 40:
-        if similarity(t, LAST_USER_CLEAN) >= 0.92:
-            if "??" in t_raw or "!!" in t_raw or any(k in t for k in FRUSTRATION_KEYWORDS):
-                return True
-
-    return False
-
-def frustration_first_response() -> str:
-    return (
-        "Sorry about that — I can see this is frustrating.\n\n"
-        "To get you the right help, which of these is closest?\n"
-        "• **Stock code / SKU**\n"
-        "• **Minimum order value (MOQ)**\n"
-        "• **Delivery / tracking**\n"
-        "• **Invoices**\n"
-        "• **Keeleco / recycled materials**\n"
-        "• **Where toys are made**\n\n"
-        "Reply with the topic (or rephrase your question) and I’ll help."
-    )
-
-def frustration_escalate_response() -> str:
-    return (
-        "Sorry — I’m not getting you the help you need here.\n\n"
-        "The quickest option is to contact our customer service team, who can help securely:\n"
-        f"{CUSTOMER_SERVICE_URL}"
-    )
-
-# =========================
-# Stock: load rows from JS
-# =========================
 async def load_stock_rows_from_js():
     global STOCK_ROWS
     try:
@@ -495,110 +205,30 @@ async def load_stock_rows_from_js():
     except Exception:
         STOCK_ROWS = []
 
-def _clear_pending_stock():
-    global PENDING_STOCK_LOOKUP, PENDING_STOCK_CHOICES, PENDING_STOCK_QUERY
-    PENDING_STOCK_LOOKUP = False
-    PENDING_STOCK_CHOICES = []
-    PENDING_STOCK_QUERY = ""
-
-def _top_stock_candidates(query: str, limit: int = 3) -> List[Tuple[float, Dict[str, str]]]:
-    q = normalize_for_product_match(query)
-    scored: List[Tuple[float, Dict[str, str]]] = []
-    for row in STOCK_ROWS:
-        name = str(row.get("product_name", "")).lower().strip()
-        if not name:
-            continue
-        scored.append((similarity(q, name), row))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return scored[:limit]
-
-def _offer_stock_choices(choices: List[Dict[str, str]]) -> str:
-    lines = ["I found a few close matches — which one did you mean? Reply with **1**, **2**, or **3**:"]
-    for i, row in enumerate(choices, start=1):
-        product = str(row.get("product_name", "")).strip().title()
-        code = str(row.get("stock_code", "")).strip()
-        lines.append(f"{i}. **{product}** (stock code **{code}**)")
-    return "\n".join(lines)
-
-def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
-    global PENDING_STOCK_LOOKUP, PENDING_STOCK_CHOICES
-
-    if not PENDING_STOCK_LOOKUP or not PENDING_STOCK_CHOICES:
-        return None
-
-    # If they switch topic, abandon pending state.
-    if (
-        is_minimum_order_question(user_text)
-        or is_delivery_question(user_text)
-        or is_invoice_question(user_text)
-        or is_eco_question(user_text)
-        or is_production_question(user_text)
-        or is_help_question(user_text)
-        or is_greeting(user_text)
-        or is_goodbye(user_text)
-    ):
-        _clear_pending_stock()
-        return None
-
-    # Numeric choice 1-3
-    t = clean_text(user_text)
-    m = re.search(r"\b([1-3])\b", t)
-    if m:
-        idx = int(m.group(1)) - 1
-        if 0 <= idx < len(PENDING_STOCK_CHOICES):
-            row = PENDING_STOCK_CHOICES[idx]
-            product = str(row.get("product_name", "")).strip().title()
-            code = str(row.get("stock_code", "")).strip()
-            _clear_pending_stock()
-            return f"The stock code for **{product}** is **{code}**."
-
-    # If they typed a name, try to match among candidates
-    best = None
-    best_s = 0.0
-    for row in PENDING_STOCK_CHOICES:
-        name = str(row.get("product_name", "")).lower().strip()
-        s = similarity(normalize_for_product_match(user_text), name)
-        if s > best_s:
-            best_s = s
-            best = row
-
-    if best and best_s >= 0.60:
-        product = str(best.get("product_name", "")).strip().title()
-        code = str(best.get("stock_code", "")).strip()
-        _clear_pending_stock()
-        return f"The stock code for **{product}** is **{code}**."
-
-    return _offer_stock_choices(PENDING_STOCK_CHOICES)
-
 def lookup_stock_code(user_text: str) -> str:
-    global PENDING_STOCK_LOOKUP, PENDING_STOCK_CHOICES, PENDING_STOCK_QUERY
-
     if not STOCK_ROWS:
         return (
             "I can’t access stock codes right now (stock_codes.xlsx may be missing or unreadable). "
             f"Please contact customer service here:\n{CUSTOMER_SERVICE_URL}"
         )
 
-    top = _top_stock_candidates(user_text, limit=3)
-    if not top:
+    query = normalize_for_product_match(user_text)
+
+    best_row = None
+    best_score = 0.0
+    for row in STOCK_ROWS:
+        name = str(row.get("product_name", "")).lower().strip()
+        score = similarity(query, name)
+        if score > best_score:
+            best_score = score
+            best_row = row
+
+    if best_score < 0.6 or not best_row:
         return "I’m not sure which product you mean. Could you please provide the product name?"
 
-    best_score, best_row = top[0]
-
-    if best_score >= STOCK_HIGH:
-        product = str(best_row.get("product_name", "")).strip().title()
-        code = str(best_row.get("stock_code", "")).strip()
-        _clear_pending_stock()
-        return f"The stock code for **{product}** is **{code}**."
-
-    if best_score >= STOCK_MED:
-        PENDING_STOCK_LOOKUP = True
-        PENDING_STOCK_QUERY = user_text
-        PENDING_STOCK_CHOICES = [row for _, row in top]
-        return _offer_stock_choices(PENDING_STOCK_CHOICES)
-
-    _clear_pending_stock()
-    return "I’m not sure which product you mean. Could you provide the exact product name (and size, if relevant)?"
+    product = str(best_row.get("product_name", "")).strip().title()
+    code = str(best_row.get("stock_code", "")).strip()
+    return f"The stock code for **{product}** is **{code}**."
 
 def lookup_product_by_code(code: str) -> Optional[str]:
     if not STOCK_ROWS:
@@ -611,9 +241,298 @@ def lookup_product_by_code(code: str) -> Optional[str]:
             return f"The product with stock code **{code}** is **{product}**."
     return None
 
-# =========================
-# FAQ (simple similarity)
-# =========================
+COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
+    "keeleco": {
+        "title": "Keeleco®",
+        "facts": [
+            "Eco-focused range made from **100% recycled polyester** (plush + fibre fill).",
+            "Around **10 recycled 500ml bottles** can produce enough fibre for an **18cm** toy (guide figure).",
+            "**FSC card** hangtags attached with **cotton**.",
+            "Recycled cartons sealed with **paper tape**.",
+            "Made in an **ethically audited** factory."
+        ],
+    },
+    "keeleco adoptable world": {
+        "title": "Keeleco Adoptable World",
+        "facts": [
+            "Part of the Keeleco® family: made using **100% recycled polyester**.",
+            "Designed as a character-led animal collection with the Keeleco eco story highlighted on hangtags."
+        ],
+    },
+    "keeleco arctic & sealife": {
+        "title": "Keeleco Arctic & Sealife",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Arctic and sea-life themed characters with Keeleco eco labelling."
+        ],
+    },
+    "keeleco baby": {
+        "title": "Keeleco Baby",
+        "facts": [
+            "Keeleco® baby-themed collection made using **100% recycled polyester**.",
+            "Designed for gentle gifting and early-years appeal while keeping the Keeleco eco materials story."
+        ],
+    },
+    "keeleco botanical garden": {
+        "title": "Keeleco Botanical Garden",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Botanical/plant-inspired characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco british wildlife & farm": {
+        "title": "Keeleco British Wildlife & Farm",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "British wildlife and farm themed characters, with Keeleco eco labelling and FSC hangtags."
+        ],
+    },
+    "keeleco collectables": {
+        "title": "Keeleco Collectables",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Collectable-style characters with the Keeleco eco materials story."
+        ],
+    },
+    "keeleco dinosaurs": {
+        "title": "Keeleco Dinosaurs",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Dinosaur-themed characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco enchanted world": {
+        "title": "Keeleco Enchanted World",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Fantasy-inspired characters with the Keeleco eco labelling."
+        ],
+    },
+    "keeleco handpuppets": {
+        "title": "Keeleco Handpuppets",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Hand puppet play format within the Keeleco eco range."
+        ],
+    },
+    "keeleco jungle cats": {
+        "title": "Keeleco Jungle Cats",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Big-cat themed characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco monkeys & apes": {
+        "title": "Keeleco Monkeys & Apes",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Monkey and ape themed characters; Keeleco eco story shown on hangtags."
+        ],
+    },
+    "keeleco pets": {
+        "title": "Keeleco Pets",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Pet-themed characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco pink": {
+        "title": "Keeleco Pink",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "A colour-led Keeleco selection with the same eco materials story."
+        ],
+    },
+    "keeleco snackies": {
+        "title": "Keeleco Snackies",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Food/snack-inspired characters within the Keeleco eco range."
+        ],
+    },
+    "keeleco teddies": {
+        "title": "Keeleco Teddies",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Teddy-led collection with the Keeleco eco materials story."
+        ],
+    },
+    "keeleco wild": {
+        "title": "Keeleco Wild",
+        "facts": [
+            "Part of Keeleco®: made using **100% recycled polyester**.",
+            "Wildlife-themed characters within the Keeleco eco range."
+        ],
+    },
+
+    "love to hug": {
+        "title": "Love To Hug",
+        "facts": [
+            "A Keel Toys collection focused on soft, huggable plush characters.",
+            "If you tell me the character/size, I can help check stock codes (if available in the Excel)."
+        ],
+    },
+    "motsu": {
+        "title": "Motsu",
+        "facts": [
+            "A Keel Toys character collection with its own distinct style and designs.",
+            "If you share the exact product name, I can help find the stock code (if listed)."
+        ],
+    },
+    "pippins": {
+        "title": "Pippins",
+        "facts": [
+            "A Keel Toys collection featuring cute character-led soft toys.",
+            "If you share the product name, I can look up the stock code (if present in your Excel)."
+        ],
+    },
+    "pugsley & friends": {
+        "title": "Pugsley & Friends",
+        "facts": [
+            "A Keel Toys character collection in the ‘Friends’ style range.",
+            "If you share the specific product name, I can help locate the stock code (if listed)."
+        ],
+    },
+    "seasonal": {
+        "title": "Seasonal",
+        "facts": [
+            "Seasonal collections cover time-of-year themes (e.g., holiday gifting and seasonal characters).",
+            "If you tell me which season/character, I can help with stock codes if they’re in your Excel."
+        ],
+    },
+    "signature cuddle puppies": {
+        "title": "Signature Cuddle Puppies",
+        "facts": [
+            "A Signature collection focused on puppy characters in a ‘cuddle’ style.",
+            "Share a product name/size and I can help identify the stock code (if listed)."
+        ],
+    },
+    "signature cuddle teddies": {
+        "title": "Signature Cuddle Teddies",
+        "facts": [
+            "A Signature collection focused on teddy characters in a ‘cuddle’ style.",
+            "Share a product name/size and I can help identify the stock code (if listed)."
+        ],
+    },
+    "signature cuddle wild": {
+        "title": "Signature Cuddle Wild",
+        "facts": [
+            "A Signature collection featuring wild-animal characters in a ‘cuddle’ style.",
+            "Share a product name/size and I can help identify the stock code (if listed)."
+        ],
+    },
+    "signature forever puppies": {
+        "title": "Signature Forever Puppies",
+        "facts": [
+            "A Signature collection focused on puppy characters in the ‘Forever Puppies’ line.",
+            "Share a product name/size and I can help identify the stock code (if listed)."
+        ],
+    },
+    "souvenir": {
+        "title": "Souvenir",
+        "facts": [
+            "A collection designed for gift/souvenir-style plush items.",
+            "If you provide the product name or a code, I can help confirm stock code details (if listed)."
+        ],
+    },
+
+    "accessories": {
+        "title": "Accessories",
+        "facts": [
+            "A product category for Keel Toys accessories.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+    "bag charms": {
+        "title": "Bag Charms",
+        "facts": [
+            "A product category featuring bag charm items.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+    "bakery": {
+        "title": "Bakery",
+        "facts": [
+            "A product category featuring bakery-themed items.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+    "bobballs": {
+        "title": "Bobballs",
+        "facts": [
+            "A product category under Keel Toys’ product listings.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+    "cafe cute": {
+        "title": "Cafe Cute",
+        "facts": [
+            "A product category under Keel Toys’ product listings.",
+            "If you provide the product name, I can try to find the stock code (if listed)."
+        ],
+    },
+}
+
+def detect_collection(cleaned_text: str) -> Optional[str]:
+    keys = sorted(COLLECTION_FACTS.keys(), key=len, reverse=True)
+    for k in keys:
+        if k in cleaned_text:
+            return k
+    return None
+
+def collections_overview() -> str:
+    kee_sub = [
+        "Keeleco Adoptable World",
+        "Keeleco Arctic & Sealife",
+        "Keeleco Baby",
+        "Keeleco Botanical Garden",
+        "Keeleco British Wildlife & Farm",
+        "Keeleco Collectables",
+        "Keeleco Dinosaurs",
+        "Keeleco Enchanted World",
+        "Keeleco Handpuppets",
+        "Keeleco Jungle Cats",
+        "Keeleco Monkeys & Apes",
+        "Keeleco Pets",
+        "Keeleco Pink",
+        "Keeleco Snackies",
+        "Keeleco Teddies",
+        "Keeleco Wild",
+    ]
+    others = [
+        "Love To Hug",
+        "Motsu",
+        "Pippins",
+        "Pugsley & Friends",
+        "Seasonal",
+        "Signature Cuddle Puppies",
+        "Signature Cuddle Teddies",
+        "Signature Cuddle Wild",
+        "Signature Forever Puppies",
+        "Souvenir",
+    ]
+    return (
+        "Here are our main collections/ranges:\n\n"
+        "Keeleco® sub-ranges:\n"
+        + "\n".join([f"• {x}" for x in kee_sub]) +
+        "\n\nOther collections:\n"
+        + "\n".join([f"• {x}" for x in others]) +
+        "\n\nTell me which one you’re interested in and I’ll share some facts about it."
+    )
+
+def collection_reply(cleaned_text: str) -> str:
+    key = detect_collection(cleaned_text)
+    if not key:
+        return collections_overview()
+
+    info = COLLECTION_FACTS[key]
+    facts = "\n".join([f"• {f}" for f in info["facts"]])
+
+    if key == "keeleco" and is_eco_question(cleaned_text):
+        return KEELECO_OVERVIEW
+
+    return f"Here’s an overview of **{info['title']}**:\n{facts}"
+
 FAQ = {
     "tell me about keel toys":
         "Keel Toys is a family-run UK soft toy company founded in 1947. Since 1988, we’ve focused on developing our own-brand soft toys.",
@@ -634,9 +553,6 @@ def best_faq_answer(user_text: str, threshold: float = 0.55) -> Optional[str]:
             best = v
     return best if best_score >= threshold else None
 
-# =========================
-# Intent system (priority-based)
-# =========================
 @dataclass
 class Intent:
     priority: int
@@ -646,186 +562,221 @@ class Intent:
 INTENTS = {
     "customer_service": Intent(
         priority=6,
-        keywords={"customer service": 6, "support": 4, "agent": 4, "human": 4, "contact": 3},
+        keywords={
+            "customer service": 6, "support": 4,
+            "agent": 4, "human": 4, "contact": 3
+        },
         responses=[
             "Of course! 😊 You can contact Keel Toys customer service here:\n"
             f"{CUSTOMER_SERVICE_URL}"
         ],
     ),
+    "delivery_time": Intent(
+        priority=5,
+        keywords={
+            "when will it arrive": 6,
+            "when is it arriving": 6,
+            "when is it going to arrive": 7,
+            "going to arrive": 6,
+            "arrival": 4,
+            "eta": 5,
+            "estimated delivery": 5,
+            "delivery date": 5,
+            "arrive": 3,
+            "delivery": 4,
+            "where is my order": 6,
+            "track my order": 5,
+            "tracking": 4,
+            "order status": 5,
+            "dispatch": 4,
+            "shipped": 4,
+        },
+        responses=[
+            "For delivery updates, please check your order confirmation email. "
+            "It includes your estimated delivery date and tracking details if available."
+        ],
+    ),
+    "greeting": Intent(
+        priority=2,
+        keywords={
+            "hi": 2, "hello": 2, "hey": 2, "hiya": 2,
+            "good morning": 2, "good afternoon": 2, "good evening": 2
+        },
+        responses=[
+            f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
+        ],
+    ),
+        "help": Intent(
+        priority=3,
+        keywords={
+            "what can you do": 6,
+            "what can you help with": 6,
+            "how can you help": 6,
+            "what can i ask": 5,
+        },
+        responses=[HELP_OVERVIEW],
+    ),
+
+"goodbye": Intent(
+        priority=1,
+        keywords={
+            "bye": 2, "goodbye": 2, "thanks": 1, "thank you": 1, "thx": 1, "cheers": 1
+        },
+        responses=[
+            f"Thanks for chatting with {COMPANY_NAME}! Have a lovely day 😊"
+        ],
+    ),
+    "invoice_copy": Intent(
+    priority=6,
+    keywords={
+        "invoice": 5,
+        "last invoice": 7,
+        "copy of my invoice": 7,
+        "invoice copy": 6,
+        "invoice history": 6,
+        "past invoice": 6,
+        "order invoice": 5,
+        "download invoice": 6
+    },
+    responses=[
+        "You can access copies of your invoices by logging in to your account, then navigating to:\n\n"
+        "**Account > My Orders > Invoice History**"
+    ],
+),
+
 }
 
-def intent_score(intent: Intent, cleaned_text: str) -> int:
-    score = 0
-    for k, w in intent.keywords.items():
-        # typo tolerant keyword hit
-        if score_intent_tokens(cleaned_text, must=tokenize(k), any_of=[] ) >= 2:
-            score += w
-    return score
+FALLBACK = (
+    "I’m not able to help with that just now.\n\n"
+    "I can help with:\n"
+    "• Stock codes / SKUs\n"
+    "• Minimum order values\n"
+    "• Keeleco® recycled materials\n"
+    "• Delivery and invoice queries\n\n"
+    "If you need further assistance, our customer service team can help here:\n"
+    f"{CUSTOMER_SERVICE_URL}"
+)
 
-def pick_intent(cleaned_text: str) -> Optional[str]:
-    scored = []
+def detect_intent(cleaned_text: str) -> Optional[str]:
+    best_intent = None
+    best_score = 0
     for name, intent in INTENTS.items():
-        s = intent_score(intent, cleaned_text)
-        if s > 0:
-            scored.append((intent.priority, s, name))
-    if not scored:
-        return None
-    scored.sort(reverse=True)
-    return scored[0][2]
+        score = sum(weight for phrase, weight in intent.keywords.items() if phrase in cleaned_text)
+        score *= intent.priority
+        if score > best_score:
+            best_score = score
+            best_intent = name
+    return best_intent if best_score > 0 else None
 
-# =========================
-# Core responder
-# =========================
-async def respond(user_text: str) -> str:
-    # 1) Privacy guardrail ALWAYS wins
-    if contains_personal_info(user_text):
-        _clear_pending_stock()
+def keelie_reply(user_input: str) -> str:
+    global PENDING_STOCK_LOOKUP
+
+    cleaned = clean_text(user_input)
+
+    if contains_personal_info(user_input):
+        PENDING_STOCK_LOOKUP = False
         return privacy_warning()
 
-    # 2) Pending stock disambiguation flow
-    pending = _handle_stock_choice_reply(user_text)
-    if pending:
-        reset_frustration()
-        return pending
+    if is_greeting(user_input):
+        PENDING_STOCK_LOOKUP = False
+        return random.choice(INTENTS["greeting"].responses)
 
-    # 3) Frustration detection (CHECK FIRST; do not pre-register)
-    global FRUSTRATION_STRIKES
-    if detect_frustration(user_text):
-        FRUSTRATION_STRIKES += 1
-        _clear_pending_stock()
-        register_message_for_repeat_check(user_text)
-
-        if FRUSTRATION_STRIKES >= 2:
-            return frustration_escalate_response()
-        return frustration_first_response()
-
-    # Normal path: now register for repeat detection
-    register_message_for_repeat_check(user_text)
-
-    # 4) Greeting early
-    if is_greeting(user_text):
-        _clear_pending_stock()
-        reset_frustration()
-        return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
-
-    # 5) Goodbye early (+ feedback prompt)
-    if is_goodbye(user_text):
-        _clear_pending_stock()
-        reset_frustration()
-        return (
-            "Goodbye! 👋 If you need anything else later, I’m here.\n\n"
-            f"Customer service: {CUSTOMER_SERVICE_URL}\n\n"
-            "Was I helpful?"
-        )
-
-    # Reset frustration on positive signals (typo-tolerant)
-    if score_intent_tokens(user_text, must=["thanks"], any_of=["thank", "cheers", "great", "perfect", "ok", "okay"]) >= 2:
-        reset_frustration()
-
-    # Direct code -> product lookup
-    code = extract_stock_code(user_text)
-    if code:
-        prod = lookup_product_by_code(code)
-        if prod:
-            _clear_pending_stock()
-            reset_frustration()
-            return prod
-
-    # Minimum order
-    if is_minimum_order_question(user_text):
-        _clear_pending_stock()
-        reset_frustration()
-        return minimum_order_response()
-
-    # Production
-    if is_production_question(user_text):
-        _clear_pending_stock()
-        reset_frustration()
-        return PRODUCTION_INFO + "\n\nIf you need more detail, please contact customer service:\n" + CUSTOMER_SERVICE_URL
-
-    # Eco / Keeleco
-    if is_eco_question(user_text):
-        _clear_pending_stock()
-        reset_frustration()
-        return KEELECO_OVERVIEW
-
-    # Delivery / tracking
-    if is_delivery_question(user_text):
-        _clear_pending_stock()
-        reset_frustration()
-        return delivery_response()
-
-    # Invoices
-    if is_invoice_question(user_text):
-        _clear_pending_stock()
-        reset_frustration()
-        return invoice_response()
-
-    # Stock code request
-    if is_stock_code_request(user_text):
-        return lookup_stock_code(user_text)
-
-    # Help
-    if is_help_question(user_text):
-        _clear_pending_stock()
-        reset_frustration()
+    if is_help_question(user_input):
+        PENDING_STOCK_LOOKUP = False
         return HELP_OVERVIEW
 
-    # FAQ similarity
-    faq = best_faq_answer(user_text)
+    if any(x in cleaned for x in ["range", "ranges", "collection", "collections", "our collections"]):
+        PENDING_STOCK_LOOKUP = False
+        return collection_reply(cleaned)
+
+    if detect_collection(cleaned):
+        PENDING_STOCK_LOOKUP = False
+        return collection_reply(cleaned)
+
+    if is_delivery_question(user_input):
+        PENDING_STOCK_LOOKUP = False
+        return random.choice(INTENTS["delivery_time"].responses)
+
+    if is_minimum_order_question(user_input):
+        PENDING_STOCK_LOOKUP = False
+        return minimum_order_response()
+
+    if is_production_question(user_input):
+        PENDING_STOCK_LOOKUP = False
+        return PRODUCTION_INFO
+
+    if is_eco_question(user_input):
+        PENDING_STOCK_LOOKUP = False
+        if detect_collection(cleaned):
+            return collection_reply(cleaned)
+        return KEELECO_OVERVIEW
+
+    if PENDING_STOCK_LOOKUP:
+        result = lookup_stock_code(user_input)
+        if "I’m not sure which product you mean" in result:
+            return "Please type the product name (e.g., “Polar Bear Plush 20cm”)."
+        PENDING_STOCK_LOOKUP = False
+        return result
+
+    if is_stock_code_request(user_input):
+        result = lookup_stock_code(user_input)
+        if "I’m not sure which product you mean" in result:
+            PENDING_STOCK_LOOKUP = True
+            return "Sure — what’s the product name?"
+        return result
+
+    code = extract_stock_code(user_input)
+    if code:
+        PENDING_STOCK_LOOKUP = False
+        found = lookup_product_by_code(code)
+        return found if found else (
+            f"I couldn’t find a product with the stock code **{code}**. "
+            "Please check the code and try again."
+        )
+
+    intent = detect_intent(cleaned)
+    if intent:
+        PENDING_STOCK_LOOKUP = False
+        return random.choice(INTENTS[intent].responses)
+
+    faq = best_faq_answer(cleaned)
     if faq:
-        _clear_pending_stock()
-        reset_frustration()
+        PENDING_STOCK_LOOKUP = False
         return faq
 
-    # Intent scoring fallback
-    intent_name = pick_intent(clean_text(user_text))
-    if intent_name:
-        _clear_pending_stock()
-        reset_frustration()
-        intent = INTENTS[intent_name]
-        return random.choice(intent.responses)
+    PENDING_STOCK_LOOKUP = False
+    return FALLBACK
 
-    # Near-miss clarification before giving up
-    guess = near_miss_prompt(user_text)
-    if guess:
-        _clear_pending_stock()
-        return guess
-
-    _clear_pending_stock()
-    return fallback_response()
-
-# =========================
-# JS bridge (called by keelie.js)
-# =========================
-async def keelie_send():
-    try:
-        msg = window.keelieGetInput()
-    except Exception:
-        msg = ""
-
-    msg = (msg or "").strip()
+async def send_message():
+    msg = (window.keelieGetInput() or "").strip()
     if not msg:
         return
 
-    window.keelieAddBubble("You", msg)
     window.keelieClearInput()
+    window.keelieAddBubble("You", msg)
 
-    try:
+    if hasattr(window, "keelieShowStatus"):
+        window.keelieShowStatus("Keelie is thinking…")
+
+    await asyncio.sleep(random.uniform(0.4, 0.8))
+
+    if hasattr(window, "keelieShowStatus"):
         window.keelieShowStatus("Keelie is typing…")
-    except Exception:
-        pass
 
-    if not STOCK_ROWS:
-        await load_stock_rows_from_js()
+    base = 0.35
+    per_char = min(len(msg) * 0.01, 1.0)
+    await asyncio.sleep(base + per_char)
 
-    answer = await respond(msg)
-
-    try:
+    if hasattr(window, "keelieClearStatus"):
         window.keelieClearStatus()
-    except Exception:
-        pass
 
-    window.keelieAddBubble(BOT_NAME, answer)
+    reply = keelie_reply(msg)
 
-window.keelieSend = keelie_send
+    window.keelieAddBubble("Keelie", reply)
+
+
+async def boot():
+    await load_stock_rows_from_js()
+    window.keelieSend = send_message
+
+await boot()
