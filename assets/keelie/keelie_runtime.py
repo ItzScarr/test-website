@@ -335,12 +335,14 @@ def detect_frustration(user_text: str) -> bool:
         if upper_ratio >= 0.85:
             return True
 
-    # Repeated message within 40 seconds
+    # Repeated message (same thing sent again within 40s)
     global LAST_USER_CLEAN, LAST_USER_TS
     now = time.time()
     if LAST_USER_CLEAN and (now - LAST_USER_TS) <= 40:
         if similarity(t, LAST_USER_CLEAN) >= 0.92:
-            return True
+            # Only count repeats as frustration if there's another frustration signal
+            if "??" in t_raw or "!!" in t_raw or any(k in t for k in FRUSTRATION_KEYWORDS):
+                return True
 
     return False
 
@@ -870,44 +872,33 @@ async def respond(user_text: str) -> str:
         _clear_pending_stock()
         return privacy_warning()
 
-    # Track for repeat detection (frustration logic)
-    register_message_for_repeat_check(user_text)
-
     # 2) Pending stock disambiguation flow
     pending = _handle_stock_choice_reply(user_text)
     if pending:
         reset_frustration()
         return pending
 
-    # 3) Frustration detection (session-only)
-# 3) Frustration detection (session-only)
+    # 3) Frustration detection (CHECK FIRST)
     global FRUSTRATION_STRIKES
     if detect_frustration(user_text):
         FRUSTRATION_STRIKES += 1
         _clear_pending_stock()
-        # IMPORTANT: update repeat-check memory after evaluating
+
+        # ✅ only update last-message memory AFTER the check
         register_message_for_repeat_check(user_text)
 
         if FRUSTRATION_STRIKES >= 2:
             return frustration_escalate_response()
         return frustration_first_response()
 
-# Update repeat-check memory for normal messages
+    # ✅ Normal path: update last-message memory here
     register_message_for_repeat_check(user_text)
 
-
-    # Reset frustration on positive signals
-    if any(x in cleaned for x in ["thanks", "thank you", "cheers", "great", "perfect", "ok"]):
+    # 4) Greeting (now it will actually run)
+    if is_greeting(cleaned):
+        _clear_pending_stock()
         reset_frustration()
-
-    # 4) Direct code -> product lookup
-    code = extract_stock_code(user_text)
-    if code:
-        prod = lookup_product_by_code(code)
-        if prod:
-            _clear_pending_stock()
-            reset_frustration()
-            return prod
+        return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
 
     # 5) Minimum order
     if is_minimum_order_question(cleaned):
