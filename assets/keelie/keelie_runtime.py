@@ -202,7 +202,6 @@ def minimum_order_response() -> str:
     )
 
 def fallback_response() -> str:
-    # Keep the first sentence stable for any JS feedback trigger patterns.
     return (
         "I’m not able to help with that just now.\n\n"
         "Right now I *can* help with:\n"
@@ -292,7 +291,7 @@ def privacy_warning() -> str:
     )
 
 # =========================
-# Frustration detection (session-only)
+# Frustration detection (session-only) — FIXED
 # =========================
 FRUSTRATION_STRIKES = 0
 LAST_USER_CLEAN = ""
@@ -322,27 +321,42 @@ def detect_frustration(user_text: str) -> bool:
 
     t = clean_text(t_raw)
 
+    # ✅ Never treat greetings / very short inputs as frustration
+    if is_greeting(t) or len(t) <= 3:
+        return False
+
+    # Direct frustration keywords
     if any(k in t for k in FRUSTRATION_KEYWORDS):
         return True
 
+    # Multiple punctuation like "???" or "!!!"
     if "??" in t_raw or "!!" in t_raw:
         return True
 
-    # ALL CAPS yelling (only if it's meaningfully long)
+    # ALL CAPS yelling (only if meaningfully long)
     letters = [c for c in t_raw if c.isalpha()]
     if len(letters) >= 8:
         upper_ratio = sum(1 for c in letters if c.isupper()) / max(1, len(letters))
         if upper_ratio >= 0.85:
             return True
 
+<<<<<<< HEAD
+    # Repeated message only counts as frustration IF there is ALSO another frustration signal
+=======
     # Repeated message (same thing sent again within 40s)
+>>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
     global LAST_USER_CLEAN, LAST_USER_TS
     now = time.time()
     if LAST_USER_CLEAN and (now - LAST_USER_TS) <= 40:
         if similarity(t, LAST_USER_CLEAN) >= 0.92:
+<<<<<<< HEAD
+            if "??" in t_raw or "!!" in t_raw or any(k in t for k in FRUSTRATION_KEYWORDS):
+                return True
+=======
             # Only count repeats as frustration if there's another frustration signal
             if "??" in t_raw or "!!" in t_raw or any(k in t for k in FRUSTRATION_KEYWORDS):
                 return True
+>>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
 
     return False
 
@@ -422,6 +436,7 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
         or is_eco_question(t)
         or is_production_question(t)
         or is_help_question(t)
+        or is_greeting(t)
     ):
         _clear_pending_stock()
         return None
@@ -512,48 +527,6 @@ COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
             "Made in an **ethically audited** factory."
         ],
     },
-    "keeleco adoptable world": {
-        "title": "Keeleco Adoptable World",
-        "facts": [
-            "Part of the Keeleco® family: made using **100% recycled polyester**.",
-            "Designed as a character-led animal collection with the Keeleco eco story highlighted on hangtags."
-        ],
-    },
-    "keeleco arctic & sealife": {
-        "title": "Keeleco Arctic & Sealife",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Arctic and sea-life themed characters with Keeleco eco labelling."
-        ],
-    },
-    "keeleco baby": {
-        "title": "Keeleco Baby",
-        "facts": [
-            "Keeleco® baby-themed collection made using **100% recycled polyester**.",
-            "Designed for gentle gifting and early-years appeal while keeping the Keeleco eco materials story."
-        ],
-    },
-    "keeleco botanical garden": {
-        "title": "Keeleco Botanical Garden",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Botanical/plant-inspired characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco british wildlife & farm": {
-        "title": "Keeleco British Wildlife & Farm",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "British wildlife and farm themed characters, with Keeleco eco labelling and FSC hangtags."
-        ],
-    },
-    "keeleco collectables": {
-        "title": "Keeleco Collectables",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Collectable-style characters with the Keeleco eco materials story."
-        ],
-    },
     "keeleco dinosaurs": {
         "title": "Keeleco Dinosaurs",
         "facts": [
@@ -561,70 +534,6 @@ COLLECTION_FACTS: Dict[str, Dict[str, List[str]]] = {
             "Dinosaur-themed characters within the Keeleco eco range."
         ],
     },
-    "keeleco enchanted world": {
-        "title": "Keeleco Enchanted World",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Fantasy-inspired characters with the Keeleco eco labelling."
-        ],
-    },
-    "keeleco handpuppets": {
-        "title": "Keeleco Handpuppets",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Hand puppet play format within the Keeleco eco range."
-        ],
-    },
-    "keeleco jungle cats": {
-        "title": "Keeleco Jungle Cats",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Big-cat themed characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco monkeys & apes": {
-        "title": "Keeleco Monkeys & Apes",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Monkey and ape themed characters; Keeleco eco story shown on hangtags."
-        ],
-    },
-    "keeleco pets": {
-        "title": "Keeleco Pets",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Pet-themed characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco pink": {
-        "title": "Keeleco Pink",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "A colour-led Keeleco selection with the same eco materials story."
-        ],
-    },
-    "keeleco snackies": {
-        "title": "Keeleco Snackies",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Food/snack-inspired characters within the Keeleco eco range."
-        ],
-    },
-    "keeleco teddies": {
-        "title": "Keeleco Teddies",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Teddy-led collection with the Keeleco eco materials story."
-        ],
-    },
-    "keeleco wild": {
-        "title": "Keeleco Wild",
-        "facts": [
-            "Part of Keeleco®: made using **100% recycled polyester**.",
-            "Wildlife-themed characters within the Keeleco eco range."
-        ],
-    },
-
     "love to hug": {
         "title": "Love To Hug",
         "facts": [
@@ -706,22 +615,8 @@ def detect_collection(cleaned_text: str) -> Optional[str]:
 
 def collections_overview() -> str:
     kee_sub = [
-        "Keeleco Adoptable World",
-        "Keeleco Arctic & Sealife",
-        "Keeleco Baby",
-        "Keeleco Botanical Garden",
-        "Keeleco British Wildlife & Farm",
-        "Keeleco Collectables",
+        "Keeleco",
         "Keeleco Dinosaurs",
-        "Keeleco Enchanted World",
-        "Keeleco Handpuppets",
-        "Keeleco Jungle Cats",
-        "Keeleco Monkeys & Apes",
-        "Keeleco Pets",
-        "Keeleco Pink",
-        "Keeleco Snackies",
-        "Keeleco Teddies",
-        "Keeleco Wild",
     ]
     others = [
         "Love To Hug",
@@ -737,7 +632,7 @@ def collections_overview() -> str:
     ]
     return (
         "Here are our main collections/ranges:\n\n"
-        "Keeleco® sub-ranges:\n"
+        "Keeleco®:\n"
         + "\n".join([f"• {x}" for x in kee_sub]) +
         "\n\nOther collections:\n"
         + "\n".join([f"• {x}" for x in others]) +
@@ -862,7 +757,7 @@ def pick_intent(cleaned_text: str) -> Optional[str]:
     return scored[0][2]
 
 # =========================
-# Core responder
+# Core responder — FIXED ORDER
 # =========================
 async def respond(user_text: str) -> str:
     cleaned = clean_text(user_text or "")
@@ -878,53 +773,90 @@ async def respond(user_text: str) -> str:
         reset_frustration()
         return pending
 
+<<<<<<< HEAD
+    # 3) Frustration detection (CHECK FIRST; do not pre-register message!)
+=======
     # 3) Frustration detection (CHECK FIRST)
+>>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
     global FRUSTRATION_STRIKES
     if detect_frustration(user_text):
         FRUSTRATION_STRIKES += 1
         _clear_pending_stock()
+<<<<<<< HEAD
+
+        # update repeat-check memory AFTER evaluating
+=======
 
         # ✅ only update last-message memory AFTER the check
+>>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
         register_message_for_repeat_check(user_text)
 
         if FRUSTRATION_STRIKES >= 2:
             return frustration_escalate_response()
         return frustration_first_response()
 
+<<<<<<< HEAD
+    # Normal path: now register for repeat detection
+=======
     # ✅ Normal path: update last-message memory here
+>>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
     register_message_for_repeat_check(user_text)
 
-    # 4) Greeting (now it will actually run)
+<<<<<<< HEAD
+    # 4) Greeting early (so it can't be pre-empted)
     if is_greeting(cleaned):
         _clear_pending_stock()
         reset_frustration()
         return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
 
+    # Reset frustration on positive signals
+    if any(x in cleaned for x in ["thanks", "thank you", "cheers", "great", "perfect", "ok"]):
+=======
+    # 4) Greeting (now it will actually run)
+    if is_greeting(cleaned):
+        _clear_pending_stock()
+>>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
+        reset_frustration()
+        return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
+
+<<<<<<< HEAD
+    # Direct code -> product lookup
+    code = extract_stock_code(user_text)
+    if code:
+        prod = lookup_product_by_code(code)
+        if prod:
+            _clear_pending_stock()
+            reset_frustration()
+            return prod
+
+    # Minimum order
+=======
     # 5) Minimum order
+>>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
     if is_minimum_order_question(cleaned):
         _clear_pending_stock()
         reset_frustration()
         return minimum_order_response()
 
-    # 6) Production
+    # Production
     if is_production_question(cleaned):
         _clear_pending_stock()
         reset_frustration()
         return PRODUCTION_INFO + "\n\nIf you need more detail, please contact customer service:\n" + CUSTOMER_SERVICE_URL
 
-    # 7) Eco / Keeleco
+    # Eco / Keeleco
     if is_eco_question(cleaned):
         _clear_pending_stock()
         reset_frustration()
         return KEELECO_OVERVIEW
 
-    # 8) Collections
+    # Collections
     if detect_collection(cleaned):
         _clear_pending_stock()
         reset_frustration()
         return collection_reply(cleaned)
 
-    # 9) Delivery / tracking guidance
+    # Delivery / tracking guidance
     if is_delivery_question(cleaned):
         _clear_pending_stock()
         reset_frustration()
@@ -933,31 +865,24 @@ async def respond(user_text: str) -> str:
             "It includes your estimated delivery date and tracking details if available."
         )
 
-    # 10) Stock code request
+    # Stock code request
     if is_stock_code_request(cleaned):
-        # (do not reset frustration here until it resolves, to preserve signals)
         return lookup_stock_code(user_text)
 
-    # 11) Help
+    # Help
     if is_help_question(cleaned):
         _clear_pending_stock()
         reset_frustration()
         return HELP_OVERVIEW
 
-    # 12) Greeting
-    if is_greeting(cleaned):
-        _clear_pending_stock()
-        reset_frustration()
-        return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
-
-    # 13) FAQ similarity
+    # FAQ similarity
     faq = best_faq_answer(user_text)
     if faq:
         _clear_pending_stock()
         reset_frustration()
         return faq
 
-    # 14) Intent scoring fallback
+    # Intent scoring fallback
     intent_name = pick_intent(cleaned)
     if intent_name:
         _clear_pending_stock()
