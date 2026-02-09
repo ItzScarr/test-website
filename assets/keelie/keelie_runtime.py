@@ -1,4 +1,6 @@
 # File: assets/keelie/keelie_runtime.py
+# NOTE: Paste this file as-is. Do NOT include any ``` backticks in the .py file.
+
 import re
 import random
 import time
@@ -72,7 +74,7 @@ STOCK_HIGH = 0.75
 STOCK_MED = 0.55
 
 # =========================
-# Text helpers
+# Basic text helpers
 # =========================
 def clean_text(text: str) -> str:
     text = (text or "").lower()
@@ -86,45 +88,129 @@ def similarity(a: str, b: str) -> float:
 def tokenize(text: str) -> List[str]:
     return [t for t in clean_text(text).split() if t]
 
-def fuzzy_contains(text: str, phrase: str, threshold: float = 0.86) -> bool:
-    """
-    True if `phrase` is approximately contained in `text` allowing small typos.
-    """
-    if not text or not phrase:
-        return False
+# =========================
+# Robust typo tolerance (token-level)
+# =========================
+def squash_repeats(word: str) -> str:
+    # hellooo -> helloo, hiiii -> hii
+    return re.sub(r"(.)\1{2,}", r"\1\1", word)
 
-    t_clean = clean_text(text)
-    p_clean = clean_text(phrase)
+def levenshtein(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
 
-    # fast exact path
-    if p_clean and p_clean in t_clean:
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        cur = [i]
+        for j, cb in enumerate(b, start=1):
+            ins = cur[j - 1] + 1
+            dele = prev[j] + 1
+            sub = prev[j - 1] + (0 if ca == cb else 1)
+            cur.append(min(ins, dele, sub))
+        prev = cur
+    return prev[-1]
+
+def token_close(a: str, b: str) -> bool:
+    if a == b:
         return True
-
-    t_words = tokenize(t_clean)
-    p_words = tokenize(p_clean)
-    if not t_words or not p_words:
+    a = a.strip()
+    b = b.strip()
+    if not a or not b:
         return False
 
-    # 1-word phrase: compare each word
-    if len(p_words) == 1:
-        pw = p_words[0]
-        for tw in t_words:
-            if similarity(tw, pw) >= threshold:
-                return True
-        return False
+    # short words are common and typo-prone
+    la, lb = len(a), len(b)
+    if la <= 3 or lb <= 3:
+        return levenshtein(a, b) <= 1
+    if la <= 6 or lb <= 6:
+        return levenshtein(a, b) <= 2
+    return levenshtein(a, b) <= 2
 
-    # multi-word phrase: sliding window of equal length
-    n = len(p_words)
-    phrase_norm = " ".join(p_words)
-    for i in range(0, len(t_words) - n + 1):
-        window = " ".join(t_words[i : i + n])
-        if similarity(window, phrase_norm) >= threshold:
+COMMON_TOKEN_FIXES = {
+    # stock/code
+    "stcok": "stock",
+    "stok": "stock",
+    "sotck": "stock",
+    "stokc": "stock",
+    "coed": "code",
+    "cod": "code",
+    "kode": "code",
+    "skuu": "sku",
+    # delivery/tracking
+    "delivary": "delivery",
+    "delvery": "delivery",
+    "delveryy": "delivery",
+    "traking": "tracking",
+    "trakking": "tracking",
+    "trak": "track",
+    "trakc": "track",
+    # invoice
+    "inovice": "invoice",
+    "invioce": "invoice",
+    "invoie": "invoice",
+    # keeleco/recycled
+    "keelco": "keeleco",
+    "keelcco": "keeleco",
+    "keel-eco": "keeleco",
+    "recyled": "recycled",
+    "recyceld": "recycled",
+    # moq/minimum order
+    "minimun": "minimum",
+    "minumum": "minimum",
+    "ordr": "order",
+    "oder": "order",
+    "valeu": "value",
+    "amout": "amount",
+    # where made
+    "wher": "where",
+    "whre": "where",
+    "mad": "made",
+    "mdae": "made",
+    "manufactuered": "manufactured",
+    "manufactered": "manufactured",
+}
+
+def normalized_tokens(text: str) -> List[str]:
+    raw = tokenize(text)
+    out: List[str] = []
+    for w in raw:
+        w = squash_repeats(w)
+        w = COMMON_TOKEN_FIXES.get(w, w)
+        out.append(w)
+    return out
+
+def has_token(tokens: List[str], target: str) -> bool:
+    target = squash_repeats(clean_text(target))
+    target = COMMON_TOKEN_FIXES.get(target, target)
+    for t in tokens:
+        if token_close(t, target):
             return True
     return False
 
-def fuzzy_any(text: str, phrases: List[str], threshold: float = 0.86) -> bool:
-    return any(fuzzy_contains(text, p, threshold) for p in phrases)
+def score_intent_tokens(text: str, must: List[str], any_of: Optional[List[str]] = None) -> int:
+    """
+    Score intent based on presence of concept tokens (typo-tolerant).
+    must tokens add +2 each, any_of tokens add +1 each.
+    """
+    any_of = any_of or []
+    toks = normalized_tokens(text)
 
+    score = 0
+    for m in must:
+        if has_token(toks, m):
+            score += 2
+    for a in any_of:
+        if has_token(toks, a):
+            score += 1
+    return score
+
+# =========================
+# Stock helpers
+# =========================
 def extract_stock_code(text: str) -> Optional[str]:
     matches = re.findall(r"\b[A-Z]{1,5}-?[A-Z]{0,5}-?\d{2,4}\b", (text or "").upper())
     return matches[0] if matches else None
@@ -143,54 +229,54 @@ def normalize_for_product_match(text: str) -> str:
     return t
 
 # =========================
-# Detectors (typo-tolerant)
+# Typo-tolerant topic detectors
 # =========================
 def is_greeting(text: str) -> bool:
-    phrases = ["hi", "hello", "hey", "hiya", "yo", "good morning", "good afternoon", "good evening"]
-    return fuzzy_any(text, phrases, threshold=0.80)
+    t = clean_text(text)
+    # stretched greetings: hiiii, heyyy, helloo
+    if re.fullmatch(r"h+i+", t) or re.fullmatch(r"he+y+", t) or re.fullmatch(r"hel+o+", t):
+        return True
+    return score_intent_tokens(text, must=["hi"], any_of=["hello", "hey", "hiya", "yo", "morning", "afternoon", "evening"]) >= 2 or \
+           score_intent_tokens(text, must=["hello"], any_of=["hi", "hey"]) >= 2 or \
+           score_intent_tokens(text, must=["hey"], any_of=["hi", "hello"]) >= 2
 
 def is_goodbye(text: str) -> bool:
-    phrases = ["bye", "goodbye", "good bye", "see you", "see ya", "cya", "thanks bye", "thank you bye", "cheers bye", "ok bye", "okay bye"]
-    return fuzzy_any(text, phrases, threshold=0.82)
+    t = clean_text(text)
+    if re.fullmatch(r"by+e+", t) or re.fullmatch(r"good+by+e+", t):
+        return True
+    return score_intent_tokens(text, must=["bye"], any_of=["goodbye", "cya", "thanks", "thank", "cheers", "see"]) >= 2 or \
+           score_intent_tokens(text, must=["goodbye"], any_of=["bye"]) >= 2
 
 def is_help_question(text: str) -> bool:
-    triggers = [
-        "what can you help with", "what can you do", "what do you do",
-        "how can you help", "what can i ask", "what questions can i ask",
-        "what are you for", "how do you work", "help"
-    ]
-    return fuzzy_any(text, triggers, threshold=0.86)
+    return score_intent_tokens(text, must=["help"], any_of=["can", "do", "ask", "questions"]) >= 2
 
 def is_stock_code_request(text: str) -> bool:
-    triggers = ["product code", "stock code", "sku", "item code", "code for", "code of"]
-    return fuzzy_any(text, triggers, threshold=0.84)
+    # allow "sku" alone, or "stock+code"
+    s1 = score_intent_tokens(text, must=["stock", "code"], any_of=["sku", "item", "product"])
+    s2 = score_intent_tokens(text, must=["sku"], any_of=["code", "stock"])
+    return max(s1, s2) >= 3
 
 def is_minimum_order_question(text: str) -> bool:
-    triggers = [
-        "minimum order", "minimum order value", "minimum spend", "min order",
-        "order minimum", "trade minimum", "moq", "minimum order quantity"
-    ]
-    return fuzzy_any(text, triggers, threshold=0.86)
+    s1 = score_intent_tokens(text, must=["minimum", "order"], any_of=["value", "moq", "spend", "amount", "purchase"])
+    s2 = score_intent_tokens(text, must=["moq"], any_of=["minimum", "order", "value"])
+    return max(s1, s2) >= 3
 
 def is_delivery_question(text: str) -> bool:
-    triggers = ["delivery", "tracking", "track my order", "where is my order", "order status", "dispatch", "shipped", "eta", "estimated delivery", "delivery date"]
-    return fuzzy_any(text, triggers, threshold=0.86)
+    s1 = score_intent_tokens(text, must=["delivery"], any_of=["tracking", "track", "order", "dispatch", "shipped", "eta", "arrive"])
+    s2 = score_intent_tokens(text, must=["tracking"], any_of=["order", "delivery", "track"])
+    return max(s1, s2) >= 3
 
 def is_invoice_question(text: str) -> bool:
-    triggers = ["invoice", "invoice history", "download invoice", "copy invoice", "invoice copy", "past invoice"]
-    return fuzzy_any(text, triggers, threshold=0.86)
-
-def is_production_question(text: str) -> bool:
-    triggers = ["where are your toys made", "where are your toys produced", "where are your toys manufactured", "where are the toys made", "where are they made"]
-    if fuzzy_any(text, triggers, threshold=0.86):
-        return True
-    t = clean_text(text)
-    # loose fallback
-    return ("where" in t) and ("toy" in t or "toys" in t) and fuzzy_any(t, ["made", "produced", "manufactured"], threshold=0.86)
+    return score_intent_tokens(text, must=["invoice"], any_of=["download", "copy", "history", "past"]) >= 2
 
 def is_eco_question(text: str) -> bool:
-    triggers = ["keeleco", "eco", "eco friendly", "eco-friendly", "sustainable", "sustainability", "recycled", "recycle", "plastic bottles", "fsc"]
-    return fuzzy_any(text, triggers, threshold=0.86)
+    s1 = score_intent_tokens(text, must=["keeleco"], any_of=["recycled", "eco", "sustainable", "fsc", "polyester"])
+    s2 = score_intent_tokens(text, must=["recycled"], any_of=["eco", "sustainable", "keeleco"])
+    return max(s1, s2) >= 2
+
+def is_production_question(text: str) -> bool:
+    s = score_intent_tokens(text, must=["where"], any_of=["made", "produce", "produced", "manufactured", "factory", "manufacturing"])
+    return s >= 2
 
 # =========================
 # Responses
@@ -232,6 +318,24 @@ def fallback_response() -> str:
         "• **Invoices** (try: “How do I download an invoice?”)\n\n"
         "Which of those do you need?"
     )
+
+def near_miss_prompt(user_text: str) -> Optional[str]:
+    scores = [
+        ("stock code / SKU", score_intent_tokens(user_text, ["stock", "code"], ["sku", "item", "product"]) ),
+        ("minimum order value (MOQ)", score_intent_tokens(user_text, ["minimum", "order"], ["value", "moq", "spend"]) ),
+        ("delivery / tracking", score_intent_tokens(user_text, ["delivery"], ["tracking", "order", "eta", "arrive"]) ),
+        ("invoices", score_intent_tokens(user_text, ["invoice"], ["download", "copy", "history"]) ),
+        ("Keeleco / recycled materials", score_intent_tokens(user_text, ["keeleco"], ["recycled", "eco", "sustainable"]) ),
+        ("where toys are made", score_intent_tokens(user_text, ["where"], ["made", "produced", "manufactured"]) ),
+    ]
+    scores.sort(key=lambda x: x[1], reverse=True)
+    top, top_s = scores[0]
+    second, second_s = scores[1]
+    if top_s >= 2:
+        if top_s == second_s and second_s >= 2:
+            return f"Did you mean **{top}** or **{second}**?\n\nReply with the topic name and I’ll help."
+        return f"Just to check — are you asking about **{top}**?\n\nReply with yes, or tell me the correct topic."
+    return None
 
 # =========================
 # Privacy guardrail (expanded)
@@ -300,7 +404,7 @@ def privacy_warning() -> str:
     )
 
 # =========================
-# Frustration detection (session-only) — fixed
+# Frustration detection (session-only)
 # =========================
 FRUSTRATION_STRIKES = 0
 LAST_USER_CLEAN = ""
@@ -350,7 +454,6 @@ def detect_frustration(user_text: str) -> bool:
     now = time.time()
     if LAST_USER_CLEAN and (now - LAST_USER_TS) <= 40:
         if similarity(t, LAST_USER_CLEAN) >= 0.92:
-            # only count repeats if there's another frustration signal
             if "??" in t_raw or "!!" in t_raw or any(k in t for k in FRUSTRATION_KEYWORDS):
                 return True
 
@@ -423,23 +526,22 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
     if not PENDING_STOCK_LOOKUP or not PENDING_STOCK_CHOICES:
         return None
 
-    t = clean_text(user_text)
-
-    # if they switch topic, abandon pending state
+    # If they switch topic, abandon pending state.
     if (
-        is_minimum_order_question(t)
-        or is_delivery_question(t)
-        or is_invoice_question(t)
-        or is_eco_question(t)
-        or is_production_question(t)
-        or is_help_question(t)
-        or is_greeting(t)
-        or is_goodbye(t)
+        is_minimum_order_question(user_text)
+        or is_delivery_question(user_text)
+        or is_invoice_question(user_text)
+        or is_eco_question(user_text)
+        or is_production_question(user_text)
+        or is_help_question(user_text)
+        or is_greeting(user_text)
+        or is_goodbye(user_text)
     ):
         _clear_pending_stock()
         return None
 
-    # numeric choice 1-3
+    # Numeric choice 1-3
+    t = clean_text(user_text)
     m = re.search(r"\b([1-3])\b", t)
     if m:
         idx = int(m.group(1)) - 1
@@ -450,7 +552,7 @@ def _handle_stock_choice_reply(user_text: str) -> Optional[str]:
             _clear_pending_stock()
             return f"The stock code for **{product}** is **{code}**."
 
-    # if they typed a name, try to match among candidates
+    # If they typed a name, try to match among candidates
     best = None
     best_s = 0.0
     for row in PENDING_STOCK_CHOICES:
@@ -533,7 +635,7 @@ def best_faq_answer(user_text: str, threshold: float = 0.55) -> Optional[str]:
     return best if best_score >= threshold else None
 
 # =========================
-# Intent system (priority-based; typo-tolerant)
+# Intent system (priority-based)
 # =========================
 @dataclass
 class Intent:
@@ -555,7 +657,8 @@ INTENTS = {
 def intent_score(intent: Intent, cleaned_text: str) -> int:
     score = 0
     for k, w in intent.keywords.items():
-        if fuzzy_contains(cleaned_text, k, threshold=0.88):
+        # typo tolerant keyword hit
+        if score_intent_tokens(cleaned_text, must=tokenize(k), any_of=[] ) >= 2:
             score += w
     return score
 
@@ -574,8 +677,6 @@ def pick_intent(cleaned_text: str) -> Optional[str]:
 # Core responder
 # =========================
 async def respond(user_text: str) -> str:
-    cleaned = clean_text(user_text or "")
-
     # 1) Privacy guardrail ALWAYS wins
     if contains_personal_info(user_text):
         _clear_pending_stock()
@@ -602,13 +703,13 @@ async def respond(user_text: str) -> str:
     register_message_for_repeat_check(user_text)
 
     # 4) Greeting early
-    if is_greeting(cleaned):
+    if is_greeting(user_text):
         _clear_pending_stock()
         reset_frustration()
         return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
 
     # 5) Goodbye early (+ feedback prompt)
-    if is_goodbye(cleaned):
+    if is_goodbye(user_text):
         _clear_pending_stock()
         reset_frustration()
         return (
@@ -617,8 +718,8 @@ async def respond(user_text: str) -> str:
             "Was I helpful?"
         )
 
-    # Reset frustration on positive signals
-    if fuzzy_any(cleaned, ["thanks", "thank you", "cheers", "great", "perfect", "ok", "okay"], threshold=0.86):
+    # Reset frustration on positive signals (typo-tolerant)
+    if score_intent_tokens(user_text, must=["thanks"], any_of=["thank", "cheers", "great", "perfect", "ok", "okay"]) >= 2:
         reset_frustration()
 
     # Direct code -> product lookup
@@ -631,41 +732,41 @@ async def respond(user_text: str) -> str:
             return prod
 
     # Minimum order
-    if is_minimum_order_question(cleaned):
+    if is_minimum_order_question(user_text):
         _clear_pending_stock()
         reset_frustration()
         return minimum_order_response()
 
     # Production
-    if is_production_question(cleaned):
+    if is_production_question(user_text):
         _clear_pending_stock()
         reset_frustration()
         return PRODUCTION_INFO + "\n\nIf you need more detail, please contact customer service:\n" + CUSTOMER_SERVICE_URL
 
     # Eco / Keeleco
-    if is_eco_question(cleaned):
+    if is_eco_question(user_text):
         _clear_pending_stock()
         reset_frustration()
         return KEELECO_OVERVIEW
 
     # Delivery / tracking
-    if is_delivery_question(cleaned):
+    if is_delivery_question(user_text):
         _clear_pending_stock()
         reset_frustration()
         return delivery_response()
 
     # Invoices
-    if is_invoice_question(cleaned):
+    if is_invoice_question(user_text):
         _clear_pending_stock()
         reset_frustration()
         return invoice_response()
 
     # Stock code request
-    if is_stock_code_request(cleaned):
+    if is_stock_code_request(user_text):
         return lookup_stock_code(user_text)
 
     # Help
-    if is_help_question(cleaned):
+    if is_help_question(user_text):
         _clear_pending_stock()
         reset_frustration()
         return HELP_OVERVIEW
@@ -677,13 +778,19 @@ async def respond(user_text: str) -> str:
         reset_frustration()
         return faq
 
-    # Intent scoring fallback (typo-tolerant)
-    intent_name = pick_intent(cleaned)
+    # Intent scoring fallback
+    intent_name = pick_intent(clean_text(user_text))
     if intent_name:
         _clear_pending_stock()
         reset_frustration()
         intent = INTENTS[intent_name]
         return random.choice(intent.responses)
+
+    # Near-miss clarification before giving up
+    guess = near_miss_prompt(user_text)
+    if guess:
+        _clear_pending_stock()
+        return guess
 
     _clear_pending_stock()
     return fallback_response()
