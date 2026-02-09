@@ -340,23 +340,13 @@ def detect_frustration(user_text: str) -> bool:
         if upper_ratio >= 0.85:
             return True
 
-<<<<<<< HEAD
     # Repeated message only counts as frustration IF there is ALSO another frustration signal
-=======
-    # Repeated message (same thing sent again within 40s)
->>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
     global LAST_USER_CLEAN, LAST_USER_TS
     now = time.time()
     if LAST_USER_CLEAN and (now - LAST_USER_TS) <= 40:
         if similarity(t, LAST_USER_CLEAN) >= 0.92:
-<<<<<<< HEAD
             if "??" in t_raw or "!!" in t_raw or any(k in t for k in FRUSTRATION_KEYWORDS):
                 return True
-=======
-            # Only count repeats as frustration if there's another frustration signal
-            if "??" in t_raw or "!!" in t_raw or any(k in t for k in FRUSTRATION_KEYWORDS):
-                return True
->>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
 
     return False
 
@@ -773,36 +763,22 @@ async def respond(user_text: str) -> str:
         reset_frustration()
         return pending
 
-<<<<<<< HEAD
     # 3) Frustration detection (CHECK FIRST; do not pre-register message!)
-=======
-    # 3) Frustration detection (CHECK FIRST)
->>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
     global FRUSTRATION_STRIKES
     if detect_frustration(user_text):
         FRUSTRATION_STRIKES += 1
         _clear_pending_stock()
-<<<<<<< HEAD
 
         # update repeat-check memory AFTER evaluating
-=======
-
-        # ✅ only update last-message memory AFTER the check
->>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
         register_message_for_repeat_check(user_text)
 
         if FRUSTRATION_STRIKES >= 2:
             return frustration_escalate_response()
         return frustration_first_response()
 
-<<<<<<< HEAD
     # Normal path: now register for repeat detection
-=======
-    # ✅ Normal path: update last-message memory here
->>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
     register_message_for_repeat_check(user_text)
 
-<<<<<<< HEAD
     # 4) Greeting early (so it can't be pre-empted)
     if is_greeting(cleaned):
         _clear_pending_stock()
@@ -811,15 +787,8 @@ async def respond(user_text: str) -> str:
 
     # Reset frustration on positive signals
     if any(x in cleaned for x in ["thanks", "thank you", "cheers", "great", "perfect", "ok"]):
-=======
-    # 4) Greeting (now it will actually run)
-    if is_greeting(cleaned):
-        _clear_pending_stock()
->>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
         reset_frustration()
-        return f"Hello! 👋 I'm {BOT_NAME}, the {COMPANY_NAME} customer service assistant. How can I help you?"
 
-<<<<<<< HEAD
     # Direct code -> product lookup
     code = extract_stock_code(user_text)
     if code:
@@ -830,9 +799,6 @@ async def respond(user_text: str) -> str:
             return prod
 
     # Minimum order
-=======
-    # 5) Minimum order
->>>>>>> 00706d2365f85edcf3244ad8fe387d8499d281e3
     if is_minimum_order_question(cleaned):
         _clear_pending_stock()
         reset_frustration()
