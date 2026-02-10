@@ -37,7 +37,7 @@
       const ws = wb.Sheets[sheetName];
       const rawRows = window.XLSX.utils.sheet_to_json(ws, { defval: "" });
 
-      const rows = rawRows
+      let rows = rawRows
         .map((r) => {
           const obj = {};
           for (const [k, v] of Object.entries(r)) obj[normKey(k)] = String(v).trim();
@@ -47,6 +47,20 @@
           };
         })
         .filter((r) => r.product_name && r.stock_code);
+
+
+      if (rows.length === 0) {
+        const matrix = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        const alt = (matrix || [])
+          .map((r) => {
+            const stock = String((r && r[0]) || "").trim();
+            const name = String((r && r[1]) || "").trim();
+            return { product_name: name, stock_code: stock };
+          })
+          .filter((r) => r.product_name && r.stock_code);
+
+        if (alt.length) rows = alt;
+      }
 
       window.keelieStockRows = rows;
       console.log(`Keelie: Loaded ${rows.length} stock rows from Excel.`);
