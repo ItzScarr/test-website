@@ -329,7 +329,7 @@ function addBubble(who, text) {
     const seen = new Set();
 
     (rows || []).forEach((r) => {
-      const name = String(r?.product_name || "").trim();
+      const name = String(r && r.product_name || "").trim();
       if (!name) return;
       const key = norm(name);
       if (!key || seen.has(key)) return;
@@ -693,4 +693,4 @@ function addBubble(who, text) {
     }
   }, 250);
 }
-mountWidget():
+mountWidget();
