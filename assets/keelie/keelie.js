@@ -732,7 +732,7 @@ function addBubble(who, text) {
 
   const py = document.createElement("py-script");
 
-  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=15`);
+  py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py?v=16`);
   document.body.appendChild(py);
 
   const failTimer = setTimeout(() => {
