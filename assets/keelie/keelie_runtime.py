@@ -24,7 +24,7 @@ PRODUCTION_INFO = (
 HELP_OVERVIEW = (
     "I can help with:\n"
     "• **Minimum order values** (e.g. “minimum order value”)\n"
-    "• **Stock codes / SKUs** (e.g. “stock code for Polar Bear Plush 20cm”)\n"
+    "• **Stock codes / SKUs** (e.g. “stock code for [product name]”)\n"
     "• **Keeleco® sustainability & recycled materials**\n"
     "• **Where our toys are made**\n"
     "• **Delivery & tracking** (e.g. “where is my order?”)\n"
@@ -173,6 +173,21 @@ def is_help_question(text: str) -> bool:
     ]
     return any(x in t for x in triggers)
 
+
+
+def is_cancel(text: str) -> bool:
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    cancel_phrases = {
+        "cancel", "nevermind", "never mind", "stop", "exit", "quit",
+        "forget it", "no thanks", "no thank you"
+    }
+    if t in cancel_phrases:
+        return True
+    if "don't want" in t or "do not want" in t:
+        return True
+    return False
 
 def is_greeting(text: str) -> bool:
     t = clean_text(text)
@@ -733,11 +748,37 @@ def keelie_reply(user_input: str) -> str:
         if detect_collection(cleaned):
             return collection_reply(cleaned)
         return KEELECO_OVERVIEW
-
     if PENDING_STOCK_LOOKUP:
+        # Allow the user to break out of the "waiting for product name" flow at any time.
+        if is_cancel(user_input):
+            PENDING_STOCK_LOOKUP = False
+            return "No problem — ask me anything."
+
+        # If they paste a stock code while pending, handle it.
+        code = extract_stock_code(user_input)
+        if code:
+            PENDING_STOCK_LOOKUP = False
+            found = lookup_product_by_code(code)
+            return found if found else (
+                f"I couldn’t find a product with the stock code **{code}**. "
+                "Please check the code and try again."
+            )
+
+        # Critical: allow normal intents/FAQs to override pending mode.
+        intent = detect_intent(cleaned)
+        if intent:
+            PENDING_STOCK_LOOKUP = False
+            return random.choice(INTENTS[intent].responses)
+
+        faq = best_faq_answer(cleaned)
+        if faq:
+            PENDING_STOCK_LOOKUP = False
+            return faq
+
+        # Otherwise treat it as a product name attempt.
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
-            return "Please type the product name (e.g., “Polar Bear Plush 20cm”)."
+            return "Sure — what’s the product name? (Or say **cancel** to ask something else.)"
         PENDING_STOCK_LOOKUP = False
         return result
 
