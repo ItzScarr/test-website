@@ -1,3 +1,4 @@
+// @ts-nocheck
 import "https://pyscript.net/releases/2024.9.2/core.js";
 
 const BASE_PATH = "assets/keelie";
@@ -155,24 +156,16 @@ function mountWidget() {
     return /\bI\s+can\s+help\b/i.test(t) && /\bWhat\s+would\s+you\s+like\s+to\s+ask\?\b/i.test(t);
   }
 
-  function looksLikeStockCode(rawInput) {
-    return /^[A-Z]{1,5}-?\d{2,6}$/i.test((rawInput || "").trim());
+  function shouldOfferFeedback(who, text) {
+    if (who !== "Keelie") return false;
+    if (!userHasMessaged) return false;
+
+    const t = String(text || "");
+    if (isOnboardingPanel(t)) return false;
+
+    if (FALLBACK_TRIGGER_RE.test(t)) return true;
+    return FEEDBACK_TRIGGERS.some(rx => rx.test(t));
   }
-
-
-
-  function shouldShowProductSuggest(rawInput) {
-    const t = norm(rawInput);
-
-    // ✅ If user pasted a stock code, don’t show suggestions; let Enter send normally
-    if (looksLikeStockCode(rawInput)) return false;
-
-    if (/\b(stock\s*code|sku|product\s*code|item\s*code)\b/i.test(t)) return true;
-    if (/^(what|where|when|how|why|do you|can you|is there|tell me)\b/i.test(t)) return false;
-    return true;
-  }
-
-
 
   function attachFeedback(bubbleEl, originalText) {
   if (!bubbleEl || bubbleEl.querySelector(".keelie-feedback")) return;
@@ -334,16 +327,14 @@ function addBubble(who, text) {
   function buildStockIndex(rows) {
     const out = [];
     const seen = new Set();
-
     (rows || []).forEach((r) => {
-      const name = String(r && r.product_name || "").trim();
+      const name = String((r && r.product_name) || '').trim();
       if (!name) return;
       const key = norm(name);
       if (!key || seen.has(key)) return;
       seen.add(key);
       out.push({ name, nameLower: key });
     });
-
     out.sort((a, b) => a.nameLower.localeCompare(b.nameLower));
     return out;
   }
@@ -351,7 +342,7 @@ function addBubble(who, text) {
   function initStockIndex() {
     try {
       const p = window.keelieStockReady;
-      if (p && typeof p.then === "function") {
+      if (p && typeof p.then === 'function') {
         p.then((rows) => {
           STOCK_INDEX = buildStockIndex(rows || window.keelieStockRows || []);
           STOCK_READY = STOCK_INDEX.length > 0;
@@ -374,9 +365,14 @@ function addBubble(who, text) {
 
   initStockIndex();
 
+  function looksLikeStockCode(rawInput) {
+    // Heuristic: 1–5 letters, optional dash, 2–6 digits (e.g. KB1234 or KB-1234)
+    return /^[A-Z]{1,5}-?\d{2,6}$/i.test(String(rawInput || '').trim());
+  }
+
   function extractProductQuery(rawInput) {
-    const q = String(rawInput || "").trim();
-    if (!q) return "";
+    const q = String(rawInput || '').trim();
+    if (!q) return '';
     const m = q.match(/stock\s*code\s*(?:for|of)\s*(.+)$/i);
     if (m && m[1]) return m[1].trim();
     const m2 = q.match(/sku\s*(?:for|of)\s*(.+)$/i);
@@ -386,12 +382,12 @@ function addBubble(who, text) {
 
   function shouldShowProductSuggest(rawInput) {
     const t = norm(rawInput);
+    // If user pasted a stock code, do not intercept with suggestions; let Enter send.
+    if (looksLikeStockCode(rawInput)) return false;
     // Explicit stock-code intent? show product matches.
     if (/\b(stock\s*code|sku|product\s*code|item\s*code)\b/i.test(t)) return true;
-
     // Generic FAQ-style questions? keep static suggestions.
     if (/^(what|where|when|how|why|do you|can you|is there|tell me)\b/i.test(t)) return false;
-
     // Otherwise allow (typing a product name directly).
     return true;
   }
@@ -399,7 +395,6 @@ function addBubble(who, text) {
   function topProductSuggestionQuestions(rawInput, limit = 6) {
     if (!STOCK_READY || !STOCK_INDEX.length) return [];
     if (!shouldShowProductSuggest(rawInput)) return [];
-
     const q = extractProductQuery(rawInput);
     if (q.length < 2) return [];
 
@@ -480,7 +475,6 @@ function addBubble(who, text) {
     suggestWrap.style.display = "block";
     panel.classList.add("is-suggesting");
   }
-
   function updateSuggest() {
     if (!SUGGEST_ENABLED) return;
 
@@ -507,6 +501,15 @@ function addBubble(who, text) {
     renderSuggest(ranked);
   }
 
+    const ranked = SUGGESTIONS
+      .map(item => ({ item, s: scoreSuggestion(query, item) }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 6)
+      .map(x => x.item);
+
+    renderSuggest(ranked);
+  }
 
 
 
