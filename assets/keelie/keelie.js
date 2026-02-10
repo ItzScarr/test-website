@@ -1,3 +1,4 @@
+// @ts-nocheck
 import "https://pyscript.net/releases/2024.9.2/core.js";
 
 const BASE_PATH = "assets/keelie";
@@ -318,17 +319,18 @@ function addBubble(who, text) {
     return overlap > 0 ? (40 + overlap) : 0;
   }
 
-
-  
   // --- Stock-backed autocomplete (Option B) ---
-  // Builds suggestions ONLY from the current Excel stock list:
+  // Suggestions are built ONLY from the Excel stock list loaded into:
   //   window.keelieStockReady / window.keelieStockRows
+  //
   // Supports:
-  //   - product-name matching (suggests "What's the stock code for <product>?")
-  //   - stock-code prefix matching (suggests "<CODE> — <product>" and sends the CODE)
+  //   - product-name matching (suggests: “What’s the stock code for <product>?”)
+  //   - stock-code prefix matching (suggests: “<CODE> — <product>”, sends: <CODE>)
+  //
+  // Important: if the user pastes a full stock code, we do NOT hijack Enter with suggestions.
 
-  let STOCK_INDEX = [];        // [{ name, nameLower, code }]
-  let CODE_INDEX = [];         // [{ code, codeLower, name }]
+  let STOCK_INDEX = [];  // [{ name, nameLower, code }]
+  let CODE_INDEX = [];   // [{ code, codeLower, name }]
   let STOCK_READY = false;
 
   function buildStockIndexes(rows) {
@@ -362,7 +364,7 @@ function addBubble(who, text) {
           const idx = buildStockIndexes(rows || window.keelieStockRows || []);
           STOCK_INDEX = idx.byName;
           CODE_INDEX = idx.byCode;
-          STOCK_READY = (STOCK_INDEX.length > 0);
+          STOCK_READY = STOCK_INDEX.length > 0;
           setTimeout(() => updateSuggest(), 0);
         }).catch(() => {
           STOCK_INDEX = [];
@@ -371,11 +373,12 @@ function addBubble(who, text) {
         });
         return;
       }
+
       if (Array.isArray(window.keelieStockRows)) {
         const idx = buildStockIndexes(window.keelieStockRows);
         STOCK_INDEX = idx.byName;
         CODE_INDEX = idx.byCode;
-        STOCK_READY = (STOCK_INDEX.length > 0);
+        STOCK_READY = STOCK_INDEX.length > 0;
       }
     } catch (_) {
       STOCK_INDEX = [];
@@ -386,34 +389,32 @@ function addBubble(who, text) {
 
   initStockIndex();
 
-  function looksLikeStockCode(rawInput) {
-    // Heuristic: 1–6 letters (optionally with dash), followed by 2–6 digits
+  function looksLikeFullStockCode(rawInput) {
+    // Conservative heuristic: 1–6 letters (optional short segment), optional dash, 2–6 digits
     // Examples: KB1234, BC-123, AB12
     return /^[A-Z]{1,6}(?:-?[A-Z]{0,3})?-?\d{2,6}$/i.test(String(rawInput || "").trim());
   }
 
-  function extractAfterKeyword(rawInput) {
-    // Pulls the query after "stock code for/of ..." or "sku for/of ..."
+  function extractStockQuery(rawInput) {
     const q = String(rawInput || "").trim();
     if (!q) return "";
     const m = q.match(/(?:stock\s*code|sku|product\s*code|item\s*code)\s*(?:for|of)\s*(.+)$/i);
-    if (m && m[1]) return m[1].trim();
-    return "";
+    return (m && m[1]) ? m[1].trim() : "";
   }
 
   function shouldShowStockSuggestions(rawInput) {
     const t = norm(rawInput);
 
-    // If they pasted a full stock code, DON'T show suggestions; let Enter send normally.
-    if (looksLikeStockCode(rawInput)) return false;
+    // If the user pasted a full code, don't open suggestions: let Enter send normally.
+    if (looksLikeFullStockCode(rawInput)) return false;
 
-    // If they are clearly asking for stock codes/SKU, show stock suggestions.
+    // If explicitly asking for stock code / sku, allow stock suggestions.
     if (/\b(stock\s*code|sku|product\s*code|item\s*code)\b/i.test(t)) return true;
 
-    // If it's a generic question, show static FAQ suggestions.
+    // Generic FAQ-style questions? stick to static suggestions.
     if (/^(what|where|when|how|why|do you|can you|is there|tell me)\b/i.test(t)) return false;
 
-    // Otherwise, allow name matching while typing a product name.
+    // Otherwise allow product-name suggestions while typing.
     return true;
   }
 
@@ -421,7 +422,7 @@ function addBubble(who, text) {
     if (!STOCK_READY || !STOCK_INDEX.length) return [];
     if (!shouldShowStockSuggestions(rawInput)) return [];
 
-    const after = extractAfterKeyword(rawInput);
+    const after = extractStockQuery(rawInput);
     const q = (after || rawInput || "").trim();
     if (q.length < 2) return [];
 
@@ -431,7 +432,7 @@ function addBubble(who, text) {
       .sort((a, b) => b.s - a.s)
       .slice(0, limit)
       .map((x) => ({
-        label: x.p.name,                           // show the exact product name from Excel
+        label: x.p.name,
         value: `What’s the stock code for ${x.p.name}?`
       }));
   }
@@ -440,13 +441,16 @@ function addBubble(who, text) {
     if (!STOCK_READY || !CODE_INDEX.length) return [];
     if (!shouldShowStockSuggestions(rawInput)) return [];
 
-    const after = extractAfterKeyword(rawInput);
+    const after = extractStockQuery(rawInput);
     const q = (after || rawInput || "").trim();
     if (q.length < 2) return [];
 
-    // Only offer code-prefix suggestions if the user looks like they're typing a code
+    // Only show code suggestions if it looks like a code prefix (letters/numbers/dash)
     if (!/^[A-Za-z0-9-]+$/.test(q)) return [];
-    if (!/[0-9]/.test(q) && q.length < 3) return []; // avoid spamming on very short non-numeric input
+    if (looksLikeFullStockCode(q)) return []; // if full code, let it send
+
+    // Encourage codes by requiring at least one digit OR at least 3 chars.
+    if (!/\d/.test(q) && q.length < 3) return [];
 
     return CODE_INDEX
       .map((c) => ({ c, s: scoreSuggestion(q, c.codeLower) }))
@@ -454,8 +458,8 @@ function addBubble(who, text) {
       .sort((a, b) => b.s - a.s)
       .slice(0, limit)
       .map((x) => ({
-        label: `${x.c.code} — ${x.c.name}`,         // show code + name
-        value: x.c.code                              // send just the code (Python can resolve)
+        label: `${x.c.code} — ${x.c.name}`,
+        value: x.c.code
       }));
   }
 
@@ -488,7 +492,7 @@ function addBubble(who, text) {
     const chosen = currentSuggestItems[activeSuggestIndex];
     if (!chosen) return false;
 
-    inputEl.value = (typeof chosen === "string") ? chosen : (chosen.value || "");
+    inputEl.value = (typeof chosen === "string") ? chosen : (chosen.value || chosen.label || "");
     hideSuggest();
 
     setTimeout(() => sendBtn.click(), 0);
@@ -521,7 +525,6 @@ function addBubble(who, text) {
         e.preventDefault();
         inputEl.value = value;
         hideSuggest();
-
         setTimeout(() => sendBtn.click(), 0);
       });
 
@@ -541,7 +544,7 @@ function addBubble(who, text) {
       return;
     }
 
-    // Build stock suggestions from Excel (names + code prefixes).
+    // Build stock suggestions ONLY from Excel list (product names + code prefixes).
     let stockItems = [];
     if (typeof topProductNameSuggestions === "function") {
       stockItems = stockItems.concat(topProductNameSuggestions(query, 6));
@@ -550,9 +553,7 @@ function addBubble(who, text) {
       stockItems = stockItems.concat(topStockCodePrefixSuggestions(query, 6));
     }
 
-    // If we have stock suggestions, use them (ONLY from Excel list).
     if (stockItems.length) {
-      // Deduplicate by label
       const seen = new Set();
       const uniq = [];
       for (const it of stockItems) {
@@ -568,29 +569,13 @@ function addBubble(who, text) {
     }
 
     // Otherwise fall back to static FAQ suggestions.
-    const rankedStatic = SUGGESTIONS
+    const ranked = SUGGESTIONS
       .map(item => ({ item, s: scoreSuggestion(query, item) }))
       .filter(x => x.s > 0)
       .sort((a, b) => b.s - a.s)
       .slice(0, 6)
       .map(x => x.item);
 
-    renderSuggest(rankedStatic);
-  }
-
-    // Prefer Excel-backed product suggestions when they exist; otherwise use static prompts.
-    const productQs = (typeof topProductSuggestionQuestions === "function")
-      ? topProductSuggestionQuestions(query, 6)
-      : [];
-
-    const rankedStatic = SUGGESTIONS
-      .map(item => ({ item, s: scoreSuggestion(query, item) }))
-      .filter(x => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 6)
-      .map(x => x.item);
-
-    const ranked = (productQs && productQs.length) ? productQs : rankedStatic;
     renderSuggest(ranked);
   }
 
@@ -602,7 +587,7 @@ function addBubble(who, text) {
       .map(x => x.item);
 
     renderSuggest(ranked);
-  
+  }
 
 
 
