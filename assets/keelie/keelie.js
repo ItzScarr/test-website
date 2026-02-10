@@ -578,19 +578,6 @@ function addBubble(who, text) {
 
     renderSuggest(ranked);
   }
-
-    const ranked = SUGGESTIONS
-      .map(item => ({ item, s: scoreSuggestion(query, item) }))
-      .filter(x => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 6)
-      .map(x => x.item);
-
-    renderSuggest(ranked);
-  }
-
-
-
   let lastFocused = null;
 
   function openPanel() {
