@@ -156,24 +156,22 @@ function mountWidget() {
   }
 
   function looksLikeStockCode(rawInput) {
-  return /^[A-Z]{1,5}-?\d{2,5}$/i.test((rawInput || "").trim());
-}
+    return /^[A-Z]{1,5}-?\d{2,6}$/i.test((rawInput || "").trim());
+  }
+
 
 
   function shouldShowProductSuggest(rawInput) {
     const t = norm(rawInput);
 
-    // ✅ If user pasted a stock code, do NOT intercept — let it send
+    // ✅ If user pasted a stock code, don’t show suggestions; let Enter send normally
     if (looksLikeStockCode(rawInput)) return false;
 
-    // Explicit stock-code intent? show product matches.
     if (/\b(stock\s*code|sku|product\s*code|item\s*code)\b/i.test(t)) return true;
-
-    // Generic FAQ-style questions? keep static suggestions.
     if (/^(what|where|when|how|why|do you|can you|is there|tell me)\b/i.test(t)) return false;
-
     return true;
   }
+
 
 
   function attachFeedback(bubbleEl, originalText) {
