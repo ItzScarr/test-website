@@ -121,6 +121,10 @@ def is_production_question(text: str) -> bool:
     return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
 
 def is_eco_question(text: str) -> bool:
+    # If the user is asking for a stock code / SKU, treat it as a stock request even if it mentions Keeleco.
+    if is_stock_code_request(text):
+        return False
+
     t = clean_text(text)
     triggers = [
         "eco", "eco friendly", "eco-friendly",
@@ -131,6 +135,7 @@ def is_eco_question(text: str) -> bool:
         "keeleco", "keel eco"
     ]
     return any(x in t for x in triggers)
+
 
 
 
@@ -173,21 +178,6 @@ def is_help_question(text: str) -> bool:
     ]
     return any(x in t for x in triggers)
 
-
-
-def is_cancel(text: str) -> bool:
-    t = (text or "").strip().lower()
-    if not t:
-        return False
-    cancel_phrases = {
-        "cancel", "nevermind", "never mind", "stop", "exit", "quit",
-        "forget it", "no thanks", "no thank you"
-    }
-    if t in cancel_phrases:
-        return True
-    if "don't want" in t or "do not want" in t:
-        return True
-    return False
 
 def is_greeting(text: str) -> bool:
     t = clean_text(text)
@@ -743,38 +733,16 @@ def keelie_reply(user_input: str) -> str:
         PENDING_STOCK_LOOKUP = False
         return PRODUCTION_INFO
 
-    # --- Stock code / SKU handling has priority over "Keeleco" eco info ---
+    if is_eco_question(user_input):
+        PENDING_STOCK_LOOKUP = False
+        if detect_collection(cleaned):
+            return collection_reply(cleaned)
+        return KEELECO_OVERVIEW
+
     if PENDING_STOCK_LOOKUP:
-        # Let the user break out of the "waiting for product name" flow at any time.
-        if is_cancel(user_input):
-            PENDING_STOCK_LOOKUP = False
-            return "No problem — ask me anything."
-
-        # If they paste a stock code while pending, handle it.
-        code = extract_stock_code(user_input)
-        if code:
-            PENDING_STOCK_LOOKUP = False
-            found = lookup_product_by_code(code)
-            return found if found else (
-                f"I couldn’t find a product with the stock code **{code}**. "
-                "Please check the code and try again."
-            )
-
-        # Allow normal intents/FAQs to override pending mode.
-        intent = detect_intent(cleaned)
-        if intent:
-            PENDING_STOCK_LOOKUP = False
-            return random.choice(INTENTS[intent].responses)
-
-        faq = best_faq_answer(cleaned)
-        if faq:
-            PENDING_STOCK_LOOKUP = False
-            return faq
-
-        # Otherwise treat it as a product name attempt.
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
-            return "Sure — what’s the product name? (Or say **cancel** to ask something else.)"
+            return "Please type the product name (e.g., “[product name]”)."
         PENDING_STOCK_LOOKUP = False
         return result
 
@@ -794,14 +762,7 @@ def keelie_reply(user_input: str) -> str:
             "Please check the code and try again."
         )
 
-    if is_eco_question(user_input):
-        PENDING_STOCK_LOOKUP = False
-        if detect_collection(cleaned):
-            return collection_reply(cleaned)
-        return KEELECO_OVERVIEW
-
     intent = detect_intent(cleaned)
-
     if intent:
         PENDING_STOCK_LOOKUP = False
         return random.choice(INTENTS[intent].responses)
