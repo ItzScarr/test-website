@@ -121,7 +121,8 @@ def is_production_question(text: str) -> bool:
     return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
 
 def is_eco_question(text: str) -> bool:
-    # If the user is asking for a stock code / SKU, treat it as a stock request even if it mentions Keeleco.
+    # Important: if the user is asking for a stock code / SKU, do NOT route to Keeleco eco info
+    # just because the product name contains the word "Keeleco".
     if is_stock_code_request(text):
         return False
 
@@ -732,6 +733,13 @@ def keelie_reply(user_input: str) -> str:
     if is_production_question(user_input):
         PENDING_STOCK_LOOKUP = False
         return PRODUCTION_INFO
+    if is_stock_code_request(user_input):
+        result = lookup_stock_code(user_input)
+        if "I’m not sure which product you mean" in result:
+            PENDING_STOCK_LOOKUP = True
+            return "Sure — what’s the product name?"
+        return result
+
 
     if is_eco_question(user_input):
         PENDING_STOCK_LOOKUP = False
@@ -742,16 +750,10 @@ def keelie_reply(user_input: str) -> str:
     if PENDING_STOCK_LOOKUP:
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
-            return "Please type the product name (e.g., “[product name]”)."
+            return "Please type the product name (e.g., “18cm Keeleco Monkey Tails 4 Asstd”)."
         PENDING_STOCK_LOOKUP = False
         return result
 
-    if is_stock_code_request(user_input):
-        result = lookup_stock_code(user_input)
-        if "I’m not sure which product you mean" in result:
-            PENDING_STOCK_LOOKUP = True
-            return "Sure — what’s the product name?"
-        return result
 
     code = extract_stock_code(user_input)
     if code:
