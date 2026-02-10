@@ -15,74 +15,71 @@ function escapeHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/\'/g, "&#039;");
+    .replace(/'/g, "&#039;");
 }
 
-function linkify(safeHtmlText) {
-  const urlRe = /\bhttps?:\/\/[^\s<]+/gi;
-
-  return safeHtmlText.replace(urlRe, (url) => {
-    const trimmed = url.replace(/[)\].,!?;:]+$/g, "");
-    const trailing = url.slice(trimmed.length);
-
-    return (
-      `<a href="${trimmed}" target="_blank" rel="noopener noreferrer">${trimmed}</a>` +
-      trailing
-    );
-  });
+function linkify(s) {
+  const safe = escapeHtml(s);
+  return safe.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    `<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>`
+  );
 }
 
-function formatKeelie(text) {
-  let safe = escapeHtml(text);
-  safe = linkify(safe);
-  safe = safe.replace(/\*\*(.+?)\*\*/g, '<span class="keelie-bold">$1</span>');
-  safe = safe.replace(/\n/g, "<br>");
-  return safe;
+function formatMessage(text) {
+  const safe = String(text ?? "");
+  // **bold**
+  const bolded = safe.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  // URLs
+  const withLinks = linkify(bolded);
+  // newlines
+  return withLinks.replace(/\n/g, "<br>");
 }
 
-function mountWidget() {
+function nowTime() {
+  const d = new Date();
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function isMobile() {
+  return window.matchMedia && window.matchMedia("(max-width: 520px)").matches;
+}
+
+function createWidget() {
   const launcher = el(`
-    <button class="keelie-launcher" aria-label="Open chat">
-      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="currentColor" d="M20 2H4a2 2 0 0 0-2 2v15.586A1.5 1.5 0 0 0 4.56 20.66L7.2 18H20a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm0 14H6.38l-2.38 2.4V4h16v12Z"/>
-      </svg>
+    <button class="keelie-launcher" type="button" aria-label="Open chat">
+      <span class="keelie-launcher-icon" aria-hidden="true">💬</span>
+      <span class="keelie-launcher-dot" aria-hidden="true"></span>
     </button>
   `);
 
   const panel = el(`
-    <div class="keelie-panel" role="dialog" aria-label="Keelie chat" aria-modal="true">
+    <div class="keelie-panel" role="dialog" aria-label="Keelie chat">
       <div class="keelie-header">
-        <div class="keelie-badge">K</div>
         <div class="keelie-title">
-          <strong>Keelie</strong>
-          <span>Keel Toys assistant</span>
+          <div class="keelie-title-name">Keelie</div>
+          <div class="keelie-title-sub">Keel Toys assistant</div>
         </div>
-
-        <a class="keelie-contact" href="${CONTACT_URL}" target="_blank" rel="noopener noreferrer">
-          Contact
-        </a>
-
-        <button class="keelie-close" aria-label="Close chat">✕</button>
+        <button class="keelie-close" type="button" aria-label="Close chat">×</button>
       </div>
 
-      <div class="keelie-chat" id="keelie-chat"></div>
+      <div class="keelie-body" id="keelie-body"></div>
+
+      <div class="keelie-suggest" id="keelie-suggest" style="display:none">
+        <div class="keelie-suggest-label">Suggestions</div>
+        <div class="keelie-suggest-list" id="keelie-suggest-list" role="listbox"></div>
+      </div>
 
       <div class="keelie-footer">
-        <div class="keelie-suggest" id="keelie-suggest" style="display:none;">
-          <div class="keelie-suggest-list" id="keelie-suggest-list"></div>
-        </div>
-
-        <div class="keelie-row">
-          <input class="keelie-input" id="keelie-text" placeholder="Type a message…" autocomplete="off" />
-          <button class="keelie-send" id="keelie-send">Send</button>
-        </div>
-
-        <div class="keelie-status" id="keelie-thinking" style="display:none;">Keelie is thinking…</div>
-        <div class="keelie-status" id="keelie-typing" style="display:none;">Keelie is typing…</div>
-
-        <div class="keelie-disclaimer">
-          Please don’t share personal details (order numbers, invoices, phone, email) in chat.
-        </div>
+        <input class="keelie-input" id="keelie-input" type="text" placeholder="Ask a question…" autocomplete="off" />
+        <button class="keelie-send" id="keelie-send" type="button">Send</button>
+      </div>
+      <div class="keelie-note">
+        Please don’t share personal details (order numbers, invoices, phone, email) in chat.
       </div>
     </div>
   `);
@@ -90,60 +87,69 @@ function mountWidget() {
   document.body.appendChild(launcher);
   document.body.appendChild(panel);
 
-  const chatEl = panel.querySelector("#keelie-chat");
-  const inputEl = panel.querySelector("#keelie-text");
+  const body = panel.querySelector("#keelie-body");
+  const inputEl = panel.querySelector("#keelie-input");
   const sendBtn = panel.querySelector("#keelie-send");
   const closeBtn = panel.querySelector(".keelie-close");
 
-  const suggestWrap = panel.querySelector("#keelie-suggest");
-  const suggestList = panel.querySelector("#keelie-suggest-list");
-  const SUGGEST_ENABLED = !!(suggestWrap && suggestList);
+  function scrollToBottom() {
+    body.scrollTop = body.scrollHeight;
+  }
 
-  function addBubble(who, text) {
-    const row = document.createElement("div");
-    row.className = `keelie-msg ${who === "You" ? "user" : "bot"}`;
+  function addBubble(text, who = "bot", opts = {}) {
+    const wrap = document.createElement("div");
+    wrap.className = `keelie-msg keelie-msg--${who}`;
 
     const bubble = document.createElement("div");
     bubble.className = "keelie-bubble";
-    bubble.innerHTML = formatKeelie(text);
+    bubble.innerHTML = formatMessage(text);
 
-    row.appendChild(bubble);
-    chatEl.appendChild(row);
-    chatEl.scrollTop = chatEl.scrollHeight;
+    const meta = document.createElement("div");
+    meta.className = "keelie-meta";
+    meta.textContent = opts.time ?? nowTime();
+
+    wrap.appendChild(bubble);
+    wrap.appendChild(meta);
+    body.appendChild(wrap);
+
+    scrollToBottom();
+    return wrap;
   }
 
-  window.keelieAddBubble = addBubble;
-  window.keelieGetInput = () => inputEl.value || "";
-  window.keelieClearInput = () => { inputEl.value = ""; };
-
-  let statusBubble = null;
-
-  function showStatus(text) {
-    clearStatus();
-    const row = document.createElement("div");
-    row.className = "keelie-msg bot keelie-status-msg";
-
+  function addTyping() {
+    const wrap = document.createElement("div");
+    wrap.className = "keelie-msg keelie-msg--bot";
     const bubble = document.createElement("div");
-    bubble.className = "keelie-bubble keelie-status-bubble";
-    bubble.textContent = text;
-
-    row.appendChild(bubble);
-    chatEl.appendChild(row);
-    chatEl.scrollTop = chatEl.scrollHeight;
-    statusBubble = row;
+    bubble.className = "keelie-bubble keelie-bubble--typing";
+    bubble.innerHTML = `
+      <span class="keelie-typing">
+        <span></span><span></span><span></span>
+      </span>
+    `;
+    wrap.appendChild(bubble);
+    body.appendChild(wrap);
+    scrollToBottom();
+    return wrap;
   }
 
-  function clearStatus() {
-    if (statusBubble && statusBubble.parentNode) {
-      statusBubble.parentNode.removeChild(statusBubble);
-    }
-    statusBubble = null;
+  function removeNode(node) {
+    if (node && node.parentNode) node.parentNode.removeChild(node);
   }
 
-  window.keelieShowStatus = showStatus;
-  window.keelieClearStatus = clearStatus;
+  // ---- feedback (unchanged behaviour) ----
+  function shouldAskFeedback(text) {
+    const t = String(text || "").toLowerCase();
+    return (
+      t.includes("stock code") ||
+      t.includes("sku") ||
+      t.includes("minimum order") ||
+      t.includes("moq") ||
+      t.includes("invoice") ||
+      t.includes("track") ||
+      t.includes("delivery")
+    );
+  }
 
-  // --- Helpful feedback row (unchanged behaviour) ---
   function addFeedbackRow() {
     const row = document.createElement("div");
     row.className = "keelie-feedback";
@@ -168,27 +174,17 @@ function mountWidget() {
       row.innerHTML = `<span class="keelie-feedback-label">Thanks!</span>`;
     });
 
-    chatEl.appendChild(row);
-    chatEl.scrollTop = chatEl.scrollHeight;
+    body.appendChild(row);
+    scrollToBottom();
   }
 
-  function shouldAskFeedback(text) {
-    const t = String(text || "").toLowerCase();
-    return (
-      t.includes("stock code") ||
-      t.includes("sku") ||
-      t.includes("minimum order") ||
-      t.includes("moq") ||
-      t.includes("invoice") ||
-      t.includes("track") ||
-      t.includes("delivery")
-    );
-  }
+  // ---- suggestion / typeahead (OPTION B) ----
+  const suggestWrap = panel.querySelector("#keelie-suggest");
+  const suggestList = panel.querySelector("#keelie-suggest-list");
+  const SUGGEST_ENABLED = !!(suggestWrap && suggestList);
 
-  // ------------------------------
-  // Option B: REAL AUTOCOMPLETE
-  // ------------------------------
-
+  // Static suggestions are "what can I ask?" prompts.
+  // Product-name autocomplete is built from stock_codes.xlsx via keelie_stock_loader.js.
   const STATIC_SUGGESTIONS = [
     "What’s the minimum order value?",
     "What’s the minimum value?",
@@ -203,12 +199,63 @@ function mountWidget() {
     "How do I contact customer service?"
   ];
 
-  let activeSuggestIndex = -1;
-  /** @type {{label:string,value:string,kind:"static"|"product"}[]} */
-  let currentSuggestItems = [];
+  /**
+   * In-memory index of products for typeahead.
+   * Populated once window.keelieStockReady resolves.
+   */
+  let STOCK_INDEX = [];
+  let STOCK_READY = false;
 
   function norm(s) {
     return String(s || "").toLowerCase().trim();
+  }
+
+  function buildStockIndex(rows) {
+    const out = [];
+    const seen = new Set();
+
+    (rows || []).forEach((r) => {
+      const name = String(r?.product_name || "").trim();
+      if (!name) return;
+
+      const key = norm(name);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+
+      out.push({
+        name,
+        nameLower: key,
+        code: String(r?.stock_code || "").trim()
+      });
+    });
+
+    // Small stability improvement: keep a deterministic order.
+    out.sort((a, b) => a.nameLower.localeCompare(b.nameLower));
+    return out;
+  }
+
+  // Best-effort: hook into the loader promise if present.
+  // (keelie_stock_loader.js sets window.keelieStockRows and window.keelieStockReady)
+  try {
+    const maybePromise = window.keelieStockReady;
+    if (maybePromise && typeof maybePromise.then === "function") {
+      maybePromise
+        .then((rows) => {
+          STOCK_INDEX = buildStockIndex(rows || window.keelieStockRows || []);
+          STOCK_READY = true;
+          // If the user is typing when stock finishes loading, refresh suggestions.
+          setTimeout(() => updateSuggest(), 0);
+        })
+        .catch(() => {
+          STOCK_READY = false;
+          STOCK_INDEX = [];
+        });
+    } else if (Array.isArray(window.keelieStockRows)) {
+      STOCK_INDEX = buildStockIndex(window.keelieStockRows);
+      STOCK_READY = true;
+    }
+  } catch (_) {
+    // ignore
   }
 
   function scoreTextMatch(query, candidate) {
@@ -216,86 +263,49 @@ function mountWidget() {
     const c = norm(candidate);
     if (!q) return 0;
 
+    // Strong signals.
     if (c === q) return 1000;
     if (c.startsWith(q)) return 800;
-
     const idx = c.indexOf(q);
-    if (idx >= 0) return 650 - Math.min(idx, 60);
+    if (idx >= 0) return 650 - Math.min(idx, 60); // earlier occurrence = better
 
+    // Token overlap (weak fuzzy).
     const qTokens = q.split(/\s+/).filter(Boolean);
     const cTokens = new Set(c.split(/\s+/).filter(Boolean));
     let overlap = 0;
-    qTokens.forEach(t => { if (cTokens.has(t)) overlap++; });
+    qTokens.forEach((t) => {
+      if (cTokens.has(t)) overlap++;
+    });
 
     return overlap > 0 ? (300 + overlap) : 0;
   }
 
-  // --- Stock-backed autocomplete index ---
-  let STOCK_INDEX = [];
-  let STOCK_READY = false;
-
-  function buildStockIndex(rows) {
-    const out = [];
-    const seen = new Set();
-    (rows || []).forEach((r) => {
-      const name = String(r?.product_name || "").trim();
-      if (!name) return;
-      const key = norm(name);
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      out.push({ name, nameLower: key });
-    });
-    out.sort((a, b) => a.nameLower.localeCompare(b.nameLower));
-    return out;
-  }
-
-  function initStockIndex() {
-    try {
-      const p = window.keelieStockReady;
-      if (p && typeof p.then === "function") {
-        p.then((rows) => {
-          STOCK_INDEX = buildStockIndex(rows || window.keelieStockRows || []);
-          STOCK_READY = STOCK_INDEX.length > 0;
-          setTimeout(() => updateSuggest(), 0);
-        }).catch(() => {
-          STOCK_READY = false;
-          STOCK_INDEX = [];
-        });
-        return;
-      }
-      if (Array.isArray(window.keelieStockRows)) {
-        STOCK_INDEX = buildStockIndex(window.keelieStockRows);
-        STOCK_READY = STOCK_INDEX.length > 0;
-      }
-    } catch (_) {
-      STOCK_READY = false;
-      STOCK_INDEX = [];
-    }
-  }
-
-  initStockIndex();
-
   function extractProductQuery(rawInput) {
     const q = String(rawInput || "").trim();
     if (!q) return "";
+
+    // If they’re already asking "stock code for ...", match on the tail.
     const m = q.match(/stock\s*code\s*(?:for|of)\s*(.+)$/i);
     if (m && m[1]) return m[1].trim();
-    return q;
-  }
 
-  function looksLikeStockLookup(rawInput) {
-    const t = norm(rawInput);
-    if (/(stock\s*code|sku|stockcode)/i.test(t)) return true;
-    if (/^(what|where|when|how|why|do you|can you|is there|tell me)\b/i.test(t)) return false;
-    return true;
+    // Otherwise, just use their current text.
+    return q;
   }
 
   function topProductSuggestions(rawInput, limit = 6) {
     if (!STOCK_READY || !STOCK_INDEX.length) return [];
-    if (!looksLikeStockLookup(rawInput)) return [];
 
     const q = extractProductQuery(rawInput);
     if (q.length < 2) return [];
+
+    // Avoid running product search when user is clearly asking a non-product question.
+    // (Very light heuristic: questions starting with these words are usually FAQs.)
+    const qLower = norm(rawInput);
+    const looksLikeFAQ =
+      /^(what|where|when|how|why|do you|can you|is there|tell me)\b/.test(qLower) &&
+      !/stock\s*code|sku|product/.test(qLower);
+
+    if (looksLikeFAQ) return [];
 
     const ranked = STOCK_INDEX
       .map((p) => ({ p, s: scoreTextMatch(q, p.nameLower) }))
@@ -303,6 +313,7 @@ function mountWidget() {
       .sort((a, b) => b.s - a.s)
       .slice(0, limit);
 
+    // Render as "real" autocomplete: selecting inserts an exact product name.
     return ranked.map(({ p }) => ({
       kind: "product",
       label: p.name,
@@ -313,13 +324,20 @@ function mountWidget() {
   function topStaticSuggestions(rawInput, limit = 6) {
     const query = String(rawInput || "").trim();
     if (query.length < 2) return [];
-    return STATIC_SUGGESTIONS
-      .map(item => ({ item, s: scoreTextMatch(query, item) }))
-      .filter(x => x.s > 0)
+
+    const ranked = STATIC_SUGGESTIONS
+      .map((item) => ({ item, s: scoreTextMatch(query, item) }))
+      .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s)
       .slice(0, limit)
-      .map(x => ({ kind: "static", label: x.item, value: x.item }));
+      .map((x) => ({ kind: "static", label: x.item, value: x.item }));
+
+    return ranked;
   }
+
+  let activeSuggestIndex = -1;
+  /** @type {{kind: "static"|"product", label: string, value: string}[]} */
+  let currentSuggestItems = [];
 
   function hideSuggest() {
     if (!SUGGEST_ENABLED) return;
@@ -351,6 +369,7 @@ function mountWidget() {
 
     inputEl.value = chosen.value;
     hideSuggest();
+
     setTimeout(() => sendBtn.click(), 0);
     return true;
   }
@@ -378,6 +397,7 @@ function mountWidget() {
         e.preventDefault();
         inputEl.value = sugg.value;
         hideSuggest();
+
         setTimeout(() => sendBtn.click(), 0);
       });
 
@@ -393,21 +413,23 @@ function mountWidget() {
 
     const raw = (inputEl.value || "").trim();
 
-    // show suggestions only while typing
     if (raw.length < 2) {
       hideSuggest();
       return;
     }
 
+    // Prefer product autocomplete when it matches, otherwise fall back to static prompts.
+    // If stock isn't ready yet, this gracefully becomes static-only.
     const product = topProductSuggestions(raw, 6);
     const statics = topStaticSuggestions(raw, 6);
 
-    // Prefer product suggestions when they exist; otherwise show static FAQs.
-    const merged = (product.length ? product : statics).slice(0, 6);
+    // If we have product matches, show them first, then a few static prompts if space.
+    const merged = product.concat(statics).slice(0, 6);
+
     renderSuggest(merged);
   }
 
-  // --- Open/close ---
+  // ---- open/close behaviour ----
   let lastFocused = null;
 
   function openPanel() {
@@ -445,11 +467,14 @@ function mountWidget() {
 
       if (e.key === "ArrowDown" && count > 0) {
         e.preventDefault();
-        setActiveSuggest(Math.min(activeSuggestIndex + 1, count - 1));
+        const next = clamp(activeSuggestIndex + 1, 0, count - 1);
+        setActiveSuggest(next);
       } else if (e.key === "ArrowUp" && count > 0) {
         e.preventDefault();
-        setActiveSuggest(Math.max(activeSuggestIndex - 1, 0));
+        const next = clamp(activeSuggestIndex - 1, 0, count - 1);
+        setActiveSuggest(next);
       } else if (e.key === "Enter") {
+
         if (acceptActiveSuggest()) {
           e.preventDefault();
           return;
@@ -458,7 +483,9 @@ function mountWidget() {
     }
   });
 
-  inputEl.addEventListener("input", () => updateSuggest());
+  inputEl.addEventListener("input", () => {
+    updateSuggest();
+  });
 
   inputEl.addEventListener("blur", () => {
     setTimeout(() => {
@@ -467,7 +494,6 @@ function mountWidget() {
     }, 120);
   });
 
-  // --- send ---
   const SEND_WINDOW_MS = 8000;
   const SEND_MAX_IN_WINDOW = 4;
   let sendTimestamps = [];
@@ -497,6 +523,7 @@ function mountWidget() {
 
   function ensurePyScriptLoaded() {
     if (document.querySelector('py-script[src*="keelie_runtime.py"]')) return;
+
     const py = document.createElement("py-script");
     py.setAttribute("src", `${BASE_PATH}/keelie_runtime.py`);
     document.body.appendChild(py);
@@ -514,12 +541,18 @@ function mountWidget() {
     });
   }
 
+  // Expose UI hooks for Python
+  window.keelieAddBubble = (text, who = "bot") => addBubble(text, who);
+  window.keelieTypingStart = () => addTyping();
+  window.keelieTypingStop = (node) => removeNode(node);
+
+  // ---- send flow ----
   async function handleSend() {
     const msg = (inputEl.value || "").trim();
     if (!msg) return;
 
     if (!canSend()) {
-      addBubble("Keelie", "You’re sending messages very quickly — please wait a moment and try again.");
+      addBubble("You’re sending messages very quickly — please wait a moment and try again.", "bot");
       setInputDisabled(true);
       setTimeout(() => setInputDisabled(false), Math.max(0, lockUntil - Date.now()));
       return;
@@ -528,23 +561,28 @@ function mountWidget() {
     recordSend();
     hideSuggest();
 
-    window.keelieClearInput();
-    addBubble("You", msg);
+    addBubble(msg, "user");
+    inputEl.value = "";
     setInputDisabled(true);
 
     try {
       if (typeof window.keelieSend === "function") {
-        // Python will read input via window.keelieGetInput(), which is still wired.
-        inputEl.value = msg;
-        await window.keelieSend();
+        const reply = await window.keelieSend(msg);
+        if (reply) {
+          addBubble(reply, "bot");
+          if (shouldAskFeedback(reply)) addFeedbackRow();
+        }
       } else {
         addBubble(
-          "Keelie",
-          "The assistant isn’t ready yet. Please try again in a moment — or contact us at " + CONTACT_URL
+          "The assistant isn’t ready yet. Please try again in a moment — or contact us at " + CONTACT_URL,
+          "bot"
         );
       }
-    } catch (_) {
-      addBubble("Keelie", "Sorry — something went wrong. Please try again, or contact us at " + CONTACT_URL);
+    } catch (err) {
+      addBubble(
+        "Sorry — something went wrong. Please try again, or contact us at " + CONTACT_URL,
+        "bot"
+      );
     } finally {
       setInputDisabled(false);
       inputEl.focus();
@@ -552,6 +590,7 @@ function mountWidget() {
   }
 
   sendBtn.addEventListener("click", handleSend);
+
   inputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -559,31 +598,25 @@ function mountWidget() {
     }
   });
 
-  // Boot
-  addBubble("Keelie", "Loading assistant…");
+  // ---- boot ----
+  addBubble("Loading assistant…", "bot", { time: "" });
   ensurePyScriptLoaded();
 
   waitForBrain()
     .then(() => {
-      addBubble(
-        "Keelie",
-        "Hi! I’m Keelie — ask me about MOQ, Keeleco, deliveries, invoices, or stock codes (e.g. *What’s the stock code for [product name]?*)."
-      );
+      addBubble("Hi! I’m Keelie — ask me about MOQ, Keeleco, deliveries, invoices, or stock codes.", "bot");
     })
     .catch(() => {
-      addBubble("Keelie", "I couldn’t load the assistant. Please refresh, or contact us at " + CONTACT_URL);
+      addBubble(
+        "I couldn’t load the assistant. Please refresh, or contact us at " + CONTACT_URL,
+        "bot"
+      );
     });
-
-  // Hook feedback insertion (Python adds bubbles; we watch and add feedback after bot messages)
-  const origAddBubble = window.keelieAddBubble;
-  window.keelieAddBubble = (who, text) => {
-    origAddBubble(who, text);
-    if (who === "Keelie" && shouldAskFeedback(text)) addFeedbackRow();
-  };
 }
 
+// mount
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", mountWidget);
+  document.addEventListener("DOMContentLoaded", createWidget);
 } else {
-  mountWidget();
+  createWidget();
 }
