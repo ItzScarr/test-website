@@ -702,5 +702,4 @@ function addBubble(who, text) {
       );
     }
   }, 250);
-}
 mountWidget();
