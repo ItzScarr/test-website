@@ -1,5 +1,4 @@
 // @ts-nocheck
-
 import "https://pyscript.net/releases/2024.9.2/core.js";
 
 const BASE_PATH = "assets/keelie";
@@ -289,7 +288,6 @@ function addBubble(who, text) {
     "What is your MOQ?",
     "Where are your toys produced?",
     "Tell me about Keeleco and recycled materials",
-    "What’s the stock code for Polar Bear Plush 20cm?",
     "How do I find a stock code / SKU?",
     "Where is my order?",
     "How do I track my order?",
@@ -322,25 +320,39 @@ function addBubble(who, text) {
   }
 
 
+  
   // --- Stock-backed autocomplete (Option B) ---
-  let STOCK_INDEX = [];
+  // Builds suggestions ONLY from the current Excel stock list:
+  //   window.keelieStockReady / window.keelieStockRows
+  // Supports:
+  //   - product-name matching (suggests "What's the stock code for <product>?")
+  //   - stock-code prefix matching (suggests "<CODE> — <product>" and sends the CODE)
+
+  let STOCK_INDEX = [];        // [{ name, nameLower, code }]
+  let CODE_INDEX = [];         // [{ code, codeLower, name }]
   let STOCK_READY = false;
 
-  function buildStockIndex(rows) {
-    const out = [];
+  function buildStockIndexes(rows) {
+    const byName = [];
+    const byCode = [];
     const seen = new Set();
 
     (rows || []).forEach((r) => {
-      const name = String(((r && r.product_name) || "")).trim();
-      if (!name) return;
-      const key = norm(name);
-      if (!key || seen.has(key)) return;
+      const code = String((r && r.stock_code) || "").replace(/\s+/g, "").trim().toUpperCase();
+      const name = String((r && r.product_name) || "").replace(/\s+/g, " ").trim();
+      if (!code || !name) return;
+
+      const key = code + "||" + name.toLowerCase();
+      if (seen.has(key)) return;
       seen.add(key);
-      out.push({ name, nameLower: key });
+
+      byName.push({ name, nameLower: norm(name), code });
+      byCode.push({ code, codeLower: norm(code), name });
     });
 
-    out.sort((a, b) => a.nameLower.localeCompare(b.nameLower));
-    return out;
+    byName.sort((a, b) => a.nameLower.localeCompare(b.nameLower));
+    byCode.sort((a, b) => a.codeLower.localeCompare(b.codeLower));
+    return { byName, byCode };
   }
 
   function initStockIndex() {
@@ -348,21 +360,27 @@ function addBubble(who, text) {
       const p = window.keelieStockReady;
       if (p && typeof p.then === "function") {
         p.then((rows) => {
-          STOCK_INDEX = buildStockIndex(rows || window.keelieStockRows || []);
-          STOCK_READY = STOCK_INDEX.length > 0;
+          const idx = buildStockIndexes(rows || window.keelieStockRows || []);
+          STOCK_INDEX = idx.byName;
+          CODE_INDEX = idx.byCode;
+          STOCK_READY = (STOCK_INDEX.length > 0);
           setTimeout(() => updateSuggest(), 0);
         }).catch(() => {
           STOCK_INDEX = [];
+          CODE_INDEX = [];
           STOCK_READY = false;
         });
         return;
       }
       if (Array.isArray(window.keelieStockRows)) {
-        STOCK_INDEX = buildStockIndex(window.keelieStockRows);
-        STOCK_READY = STOCK_INDEX.length > 0;
+        const idx = buildStockIndexes(window.keelieStockRows);
+        STOCK_INDEX = idx.byName;
+        CODE_INDEX = idx.byCode;
+        STOCK_READY = (STOCK_INDEX.length > 0);
       }
     } catch (_) {
       STOCK_INDEX = [];
+      CODE_INDEX = [];
       STOCK_READY = false;
     }
   }
@@ -370,35 +388,42 @@ function addBubble(who, text) {
   initStockIndex();
 
   function looksLikeStockCode(rawInput) {
-    return /^[A-Z]{1,5}-?\d{2,6}$/i.test(String(rawInput || "").trim());
+    // Heuristic: 1–6 letters (optionally with dash), followed by 2–6 digits
+    // Examples: KB1234, BC-123, AB12
+    return /^[A-Z]{1,6}(?:-?[A-Z]{0,3})?-?\d{2,6}$/i.test(String(rawInput || "").trim());
   }
 
-  function extractProductQuery(rawInput) {
+  function extractAfterKeyword(rawInput) {
+    // Pulls the query after "stock code for/of ..." or "sku for/of ..."
     const q = String(rawInput || "").trim();
     if (!q) return "";
-    const m = q.match(/stock\s*code\s*(?:for|of)\s*(.+)$/i);
+    const m = q.match(/(?:stock\s*code|sku|product\s*code|item\s*code)\s*(?:for|of)\s*(.+)$/i);
     if (m && m[1]) return m[1].trim();
-    const m2 = q.match(/sku\s*(?:for|of)\s*(.+)$/i);
-    if (m2 && m2[1]) return m2[1].trim();
-    return q;
+    return "";
   }
 
-  function shouldShowProductSuggest(rawInput) {
+  function shouldShowStockSuggestions(rawInput) {
     const t = norm(rawInput);
 
-    // If user pasted a stock code, don't show suggestions; let Enter send.
+    // If they pasted a full stock code, DON'T show suggestions; let Enter send normally.
     if (looksLikeStockCode(rawInput)) return false;
 
+    // If they are clearly asking for stock codes/SKU, show stock suggestions.
     if (/\b(stock\s*code|sku|product\s*code|item\s*code)\b/i.test(t)) return true;
+
+    // If it's a generic question, show static FAQ suggestions.
     if (/^(what|where|when|how|why|do you|can you|is there|tell me)\b/i.test(t)) return false;
+
+    // Otherwise, allow name matching while typing a product name.
     return true;
   }
 
-  function topProductSuggestionQuestions(rawInput, limit = 6) {
+  function topProductNameSuggestions(rawInput, limit = 6) {
     if (!STOCK_READY || !STOCK_INDEX.length) return [];
-    if (!shouldShowProductSuggest(rawInput)) return [];
+    if (!shouldShowStockSuggestions(rawInput)) return [];
 
-    const q = extractProductQuery(rawInput);
+    const after = extractAfterKeyword(rawInput);
+    const q = (after || rawInput || "").trim();
     if (q.length < 2) return [];
 
     return STOCK_INDEX
@@ -406,8 +431,35 @@ function addBubble(who, text) {
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s)
       .slice(0, limit)
-      .map((x) => `What’s the stock code for ${x.p.name}?`);
+      .map((x) => ({
+        label: x.p.name,                           // show the exact product name from Excel
+        value: `What’s the stock code for ${x.p.name}?`
+      }));
   }
+
+  function topStockCodePrefixSuggestions(rawInput, limit = 6) {
+    if (!STOCK_READY || !CODE_INDEX.length) return [];
+    if (!shouldShowStockSuggestions(rawInput)) return [];
+
+    const after = extractAfterKeyword(rawInput);
+    const q = (after || rawInput || "").trim();
+    if (q.length < 2) return [];
+
+    // Only offer code-prefix suggestions if the user looks like they're typing a code
+    if (!/^[A-Za-z0-9-]+$/.test(q)) return [];
+    if (!/[0-9]/.test(q) && q.length < 3) return []; // avoid spamming on very short non-numeric input
+
+    return CODE_INDEX
+      .map((c) => ({ c, s: scoreSuggestion(q, c.codeLower) }))
+      .filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, limit)
+      .map((x) => ({
+        label: `${x.c.code} — ${x.c.name}`,         // show code + name
+        value: x.c.code                              // send just the code (Python can resolve)
+      }));
+  }
+
 
   function hideSuggest() {
     if (!SUGGEST_ENABLED) return;
@@ -437,7 +489,7 @@ function addBubble(who, text) {
     const chosen = currentSuggestItems[activeSuggestIndex];
     if (!chosen) return false;
 
-    inputEl.value = chosen;
+    inputEl.value = (typeof chosen === "string") ? chosen : (chosen.value || "");
     hideSuggest();
 
     setTimeout(() => sendBtn.click(), 0);
@@ -457,16 +509,18 @@ function addBubble(who, text) {
 
     suggestList.innerHTML = "";
 
-    items.forEach((text) => {
+    items.forEach((item) => {
+      const text = (typeof item === "string") ? item : (item.label || "");
+      const value = (typeof item === "string") ? item : (item.value || item.label || "");
+
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "keelie-suggest-item";
       btn.textContent = text;
 
-
       btn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
-        inputEl.value = text;
+        inputEl.value = value;
         hideSuggest();
 
         setTimeout(() => sendBtn.click(), 0);
@@ -478,8 +532,6 @@ function addBubble(who, text) {
     suggestWrap.style.display = "block";
     panel.classList.add("is-suggesting");
   }
-
-
   function updateSuggest() {
     if (!SUGGEST_ENABLED) return;
 
@@ -490,6 +542,44 @@ function addBubble(who, text) {
       return;
     }
 
+    // Build stock suggestions from Excel (names + code prefixes).
+    let stockItems = [];
+    if (typeof topProductNameSuggestions === "function") {
+      stockItems = stockItems.concat(topProductNameSuggestions(query, 6));
+    }
+    if (typeof topStockCodePrefixSuggestions === "function") {
+      stockItems = stockItems.concat(topStockCodePrefixSuggestions(query, 6));
+    }
+
+    // If we have stock suggestions, use them (ONLY from Excel list).
+    if (stockItems.length) {
+      // Deduplicate by label
+      const seen = new Set();
+      const uniq = [];
+      for (const it of stockItems) {
+        if (!it || !it.label) continue;
+        const k = it.label.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        uniq.push(it);
+        if (uniq.length >= 6) break;
+      }
+      renderSuggest(uniq);
+      return;
+    }
+
+    // Otherwise fall back to static FAQ suggestions.
+    const rankedStatic = SUGGESTIONS
+      .map(item => ({ item, s: scoreSuggestion(query, item) }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 6)
+      .map(x => x.item);
+
+    renderSuggest(rankedStatic);
+  }
+
+    // Prefer Excel-backed product suggestions when they exist; otherwise use static prompts.
     const productQs = (typeof topProductSuggestionQuestions === "function")
       ? topProductSuggestionQuestions(query, 6)
       : [];
@@ -504,6 +594,16 @@ function addBubble(who, text) {
     const ranked = (productQs && productQs.length) ? productQs : rankedStatic;
     renderSuggest(ranked);
   }
+
+    const ranked = SUGGESTIONS
+      .map(item => ({ item, s: scoreSuggestion(query, item) }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 6)
+      .map(x => x.item);
+
+    renderSuggest(ranked);
+  
 
 
 
@@ -687,7 +787,7 @@ function addBubble(who, text) {
         "Hello! 👋 I’m Keelie — the Keel Toys assistant.\n\n"
         + "I can help you with things like:\n"
         + "• **Minimum order values** (e.g. *What’s the minimum order value?*)\n"
-        + "• **Stock codes / SKUs** (e.g. *What’s the stock code for Polar Bear Plush 20cm?*)\n"
+        + "• **Stock codes / SKUs** (e.g. *What’s the stock code for [product name]?*)\n"
         + "• **Keeleco® recycled materials & sustainability**\n"
         + "• **Where our toys are made**\n"
         + "• **Delivery & order questions** (e.g. *Where is my order?*)\n"
