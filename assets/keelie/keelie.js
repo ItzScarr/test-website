@@ -500,15 +500,6 @@ function addBubble(who, text) {
     renderSuggest(ranked);
   }
 
-    const ranked = SUGGESTIONS
-      .map(item => ({ item, s: scoreSuggestion(query, item) }))
-      .filter(x => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 6)
-      .map(x => x.item);
-
-    renderSuggest(ranked);
-  }
 
 
 
@@ -692,7 +683,7 @@ function addBubble(who, text) {
         "Hello! 👋 I’m Keelie — the Keel Toys assistant.\n\n"
         + "I can help you with things like:\n"
         + "• **Minimum order values** (e.g. *What’s the minimum order value?*)\n"
-        + "• **Stock codes / SKUs** (e.g. *What’s the stock code for Polar Bear Plush 20cm?*)\n"
+        + "• **Stock codes / SKUs** (e.g. *What’s the stock code for [product name]?*)\n"
         + "• **Keeleco® recycled materials & sustainability**\n"
         + "• **Where our toys are made**\n"
         + "• **Delivery & order questions** (e.g. *Where is my order?*)\n"
@@ -702,4 +693,4 @@ function addBubble(who, text) {
     }
   }, 250);
 }
-mountWidget();
+mountWidget():
