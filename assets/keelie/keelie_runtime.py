@@ -24,7 +24,7 @@ PRODUCTION_INFO = (
 HELP_OVERVIEW = (
     "I can help with:\n"
     "• **Minimum order values** (e.g. “minimum order value”)\n"
-    "• **Stock codes / SKUs** (e.g. “stock code for [product name]”)\n"
+    "• **Stock codes / SKUs** (e.g. “stock code for Polar Bear Plush 20cm”)\n"
     "• **Keeleco® sustainability & recycled materials**\n"
     "• **Where our toys are made**\n"
     "• **Delivery & tracking** (e.g. “where is my order?”)\n"
@@ -121,8 +121,8 @@ def is_production_question(text: str) -> bool:
     return ("where" in t) and ("toy" in t or "toys" in t) and any(w in t for w in production_words)
 
 def is_eco_question(text: str) -> bool:
-    # Important: if the user is asking for a stock code / SKU, do NOT route to Keeleco eco info
-    # just because the product name contains the word "Keeleco".
+    # If the user is asking for a stock code / SKU, do NOT route to eco info
+    # even if the product name contains "Keeleco".
     if is_stock_code_request(text):
         return False
 
@@ -139,11 +139,6 @@ def is_eco_question(text: str) -> bool:
 
 
 
-
-EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
-PHONE_RE = re.compile(r"(?:(?:\+|00)\s?\d{1,3}[\s-]?)?(?:\(?\d{2,5}\)?[\s-]?)?\d[\d\s-]{7,}\d")
-ORDER_CUE_RE = re.compile(r"\b(order|invoice|account|ref|reference|tracking|awb|consignment)\b", re.I)
-LONG_DIGITS_RE = re.compile(r"\b\d{6,}\b")
 
 def contains_personal_info(text: str) -> bool:
     t = text or ""
@@ -733,13 +728,13 @@ def keelie_reply(user_input: str) -> str:
     if is_production_question(user_input):
         PENDING_STOCK_LOOKUP = False
         return PRODUCTION_INFO
+
     if is_stock_code_request(user_input):
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
             PENDING_STOCK_LOOKUP = True
             return "Sure — what’s the product name?"
         return result
-
 
     if is_eco_question(user_input):
         PENDING_STOCK_LOOKUP = False
@@ -750,10 +745,9 @@ def keelie_reply(user_input: str) -> str:
     if PENDING_STOCK_LOOKUP:
         result = lookup_stock_code(user_input)
         if "I’m not sure which product you mean" in result:
-            return "Please type the product name (e.g., “18cm Keeleco Monkey Tails 4 Asstd”)."
+            return "Please type the product name (e.g., \"[product name]\")."
         PENDING_STOCK_LOOKUP = False
         return result
-
 
     code = extract_stock_code(user_input)
     if code:
