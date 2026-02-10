@@ -1,4 +1,3 @@
-// @ts-nocheck
 import "https://pyscript.net/releases/2024.9.2/core.js";
 
 const BASE_PATH = "assets/keelie";
